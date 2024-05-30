@@ -49,6 +49,11 @@ $ cd pyVTTrac
 $ pip install .
 ```
 
+## Tutorial
+There is sample data and code available for a tutorial.  
+Please see [docs/sample/README.md](docs/sample/README.md)
+
+
 ## Scripts
 ### 10_conduct_tracking.py
 This script perform the cloud tracking for satellite imagery.
