@@ -1,12 +1,13 @@
 # openTCAMV
-Open source TC-specific AMV derivation scripts
+Open source TC-specific AMV derivation scripts.
 
 ## References
-- Tsukada, T., Horinouchi, T., & Tsujino, S. (2024). Wind distribution in the eye of tropical cyclone revealed by a novel atmospheric motion vector derivation. Journal of Geophysical Research: Atmospheres, 129, e2023JD040585. https://doi.org/10.1029/2023JD040585
-- Horinouchi, T., S. Tsujino, M. Hayashi, U. Shimada, W. Yanase, A. Wada, and H. Yamada, 2023: Stationary and Transient Asymmetric Features in Tropical Cyclone Eye with Wavenumber-1 Instability: Case Study for Typhoon Haishen (2020) with Atmospheric Motion Vectors from 30-Second Imaging. Monthly Weather Review, 151, 253–273, https://doi.org/10.1175/MWR-D-22-0179.1.
-
+[![T24](https://img.shields.io/badge/T24-10.1029/2023JD040585-blue.svg)](https://doi.org/10.1029/2023JD040585)
+[![H23](https://img.shields.io/badge/H23-10.1029/2023JD040585-blue.svg)](https://doi.org/10.1175/MWR-D-22-0179.1)
+- Tsukada, T., Horinouchi, T., & Tsujino, S. (2024). Wind distribution in the eye of tropical cyclone revealed by a novel atmospheric motion vector derivation. Journal of Geophysical Research: Atmospheres, 129, e2023JD040585. https://doi.org/10.1029/2023JD040585  
+- Horinouchi, T., S. Tsujino, M. Hayashi, U. Shimada, W. Yanase, A. Wada, and H. Yamada, 2023: Stationary and Transient Asymmetric Features in Tropical Cyclone Eye with Wavenumber-1 Instability: Case Study for Typhoon Haishen (2020) with Atmospheric Motion Vectors from 30-Second Imaging. Monthly Weather Review, 151, 253–273, https://doi.org/10.1175/MWR-D-22-0179.1.  
 ## Version history
-- 1.0.0 (2024-05-30): Initial release
+[![1.0.0](https://img.shields.io/badge/2024/05/30-1.0.0-purple.svg)](https://github.com/tsukada-cs/openTCAMV/releases/tag/1.0.0)
 
 ## Directory structure
 ```
