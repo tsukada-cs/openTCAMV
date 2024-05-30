@@ -253,7 +253,7 @@ $ python 30_plot_velocity2d.py ../sample/2017_Lan_ns7_nt1.nc --it=24
 #### Command line arguments
 | Argument            | Type | Default | Description                                                                                                  | Choices |
 | ------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------ | ------- |
-| "ifn"               |      |         | Directory containing sample data                                                                             |         |
+| "ifn"               | str  |         | Directory containing sample data                                                                             |         |
 | "--it"              | int  | 24      | Time index to plot                                                                                           |         |
 | "--sstep"           | int  | 2       | Spacing between drawn vectors                                                                                |         |
 | "--vector_duration" | int  | 90      | Duration of each vector in seconds. If 90, then vector length corresponds to the travel length during 90 sec |         |
