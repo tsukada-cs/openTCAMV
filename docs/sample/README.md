@@ -7,7 +7,16 @@ $ cd openTCAMV/sample
 Thi document follows the [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585) method to conduct cloud tracking for the sample data of Typhoon Lan (2017). Almost settings are the same as the original paper.
 
 ## Data
-The sample data is a NetCDF file located at `openTCAMV/sample/2017_Lan_aeqd_sample.nc`. This dataset contains satellite imagery of Typhoon Lan (2017) over a 2-hour period starting from 2017-10-21 01:59:48 UTC, at approximately (131.6°E, 21.8°N). For details of this storm, see [Figure 12 of Tsukada et al. (2024)](https://agupubs.onlinelibrary.wiley.com/cms/asset/4b9fb874-75a8-4fc3-9094-685dd073e121/jgrd59466-fig-0012-m.jpg).
+The sample data is available on the "Release" page of the openTCAMV GitHub repository. Please download the sample data from the following link: 
+> https://github.com/tsukada-cs/openTCAMV/releases/download/1.0.0/2017_Lan_aeqd_sample.nc
+
+or, just wget the file:
+```bash
+$ wget https://github.com/tsukada-cs/openTCAMV/releases/download/1.0.0/2017_Lan_aeqd_sample.nc
+```
+Please make sure that the sample date is located at `openTCAMV/sample/2017_Lan_aeqd_sample.nc`. 
+
+This dataset contains satellite imagery of Typhoon Lan (2017) over a 2-hour period starting from 2017-10-21 01:59:48 UTC, at approximately (131.6°E, 21.8°N). For details of this storm, see [Figure 12 of Tsukada et al. (2024)](https://agupubs.onlinelibrary.wiley.com/cms/asset/4b9fb874-75a8-4fc3-9094-685dd073e121/jgrd59466-fig-0012-m.jpg).
 
 
 The `ncdump -h` command shows the following file structure:

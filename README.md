@@ -9,9 +9,13 @@ Open source TC-specific AMV derivation scripts
 openTCAMV/
 ├── README.md
 ├── requirements.txt
+├── docs
+│   └── sample
+│       ├── README.md
+│       └── AMVs_it24.png
 ├── sample
-│   ├── 2017_Lan_aeqd_sample.nc
-│   └── sample.sh
+│   ├── sample.sh
+│   └── (2017_Lan_aeqd_sample.nc) # see docs/sample/README.md
 └── scripts
     ├── 10_conduct_tracking.py
     ├── 11_concat_flows_along_time.py

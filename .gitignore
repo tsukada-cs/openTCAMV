@@ -163,5 +163,5 @@ cython_debug/
 
 # openTCAMV
 .vscode/
-sample/2017_Lan_ns*
+sample/2017_Lan_*
 private/
