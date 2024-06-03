@@ -7,7 +7,7 @@ $ cd openTCAMV/sample
 Thi document follows the [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585) method to conduct cloud tracking for the sample data of Typhoon Lan (2017). Almost settings are the same as the original paper.
 
 ## Data
-[![Data](https://img.shields.io/badge/Data-2017__Lan__aeqd__sample.nc-brown.svg?logo=github)](https://github.com/tsukada-cs/openTCAMV/releases)  
+[![Data](https://img.shields.io/badge/Data-2017__Lan__aeqd__sample.nc-darkgreen.svg?logo=github)](https://github.com/tsukada-cs/openTCAMV/releases)  
 The sample data is available on the "Release" page of the openTCAMV GitHub repository. Please download the sample data from the following link:
 
 > https://github.com/tsukada-cs/openTCAMV/releases/download/1.0.0/2017_Lan_aeqd_sample.nc
