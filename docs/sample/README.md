@@ -90,7 +90,7 @@ Following is an example of how to use this script to conduct cloud tracking for 
 # 1-1 Conduct tracking without rotation
 $ revrot=0.0000
 $ python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc --revrot $revrot --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 \
-    -o=2017_Lan_ns7_nt1_rot${revrot}.nc --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=40 \
+    -o=2017_Lan_ns7_nt1_rot${revrot}.nc --ygran=-45:45 --xgran=-45:45 --yint=5 --xint=5 --traj_int=1 --Vs=40 \
     --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
 ```
 In this example, cloud tracking is conducted for `--varname="B03"` variable with the reverse rotation speed of `--revrot=0.0000` rad/s (i.e., no rotation). The template size is set to `--ns=7` px, and the tracking is conducted for `--ntrac=1` time step for both backward and forward time direction. The tracking result with cross correlation lower than `--Sth0=0.7` is rejected. The output file is named `-o=2017_Lan_ns7_nt1_rot0.0000.nc`. For other options, see the help message of the script by running `python ../scripts/10_conduct_tracking.py -h`.
@@ -107,7 +107,7 @@ $ max_process=5 # maximum number of processes
 $ for it1 in $(seq 0 $it_width $((ntime-1))); do
     it2=$((it1+it_width-1))
     python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc --revrot $revrot --itran=$it1:$it2 --ns=7 --ntrac=1 --Sth0=0.7 \
-        -o=2017_Lan_ns7_nt1_rot${revrot}_it${it1}-${it2}.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=40 \
+        -o=2017_Lan_ns7_nt1_rot${revrot}_it${it1}-${it2}.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --xint=5 --yint=5 --traj_int=1 --Vs=40 \
         --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5 &
     if [ $(jobs | wc -l) -ge $max_process ]; then
         wait
