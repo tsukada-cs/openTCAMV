@@ -106,8 +106,12 @@ $ it_width=10 # width of time indices for each process
 $ max_process=5 # maximum number of processes
 $ for it1 in $(seq 0 $it_width $((ntime-1))); do
     it2=$((it1+it_width-1))
+
+    it1_4digits=$(printf "%04d" $it1)  # Format it1 to 4 digits
+    it2_4digits=$(printf "%04d" $it2)  # Format it2 to 4 digits
+
     python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc --revrot $revrot --itran=$it1:$it2 --ns=7 --ntrac=1 --Sth0=0.7 \
-        -o=2017_Lan_ns7_nt1_rot${revrot}_it${it1}-${it2}.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --xint=5 --yint=5 --traj_int=1 --Vs=40 \
+        -o=2017_Lan_ns7_nt1_rot${revrot}_it${it1_4digits}-${it2_4digits}.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --xint=5 --yint=5 --traj_int=1 --Vs=40 \
         --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5 &
     if [ $(jobs | wc -l) -ge $max_process ]; then
         wait
