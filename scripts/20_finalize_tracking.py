@@ -30,9 +30,7 @@ import matplotlib.pyplot as plt
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO, format="[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger.info(f"PID: {os.getpid()}")
 
 
@@ -41,6 +39,9 @@ parser.add_argument("ifns_rule", type=str, help="filename format used in f-strin
 parser.add_argument("--ns", type=int, nargs="+", help="ns list")
 parser.add_argument("--omega", type=str, nargs="+", help="Ω_i list")
 parser.add_argument("-o", "--ofn", type=str, help="output filename")
+parser.add_argument("--itmin", type=int, default=0, help="minimum index of time dimension to consider")
+parser.add_argument("--itmax", type=int, help="maximum index of time dimension to consider")
+parser.add_argument("--itstep", type=int, default=1, help="step of time dimension to consider")
 parser.add_argument("--Tw", type=float, default=1210, help="time period of median filtering window (in sec)")
 parser.add_argument("--Hw", type=float, default=6, help="width & height of median filtering window for Cartesian grid (in km)")
 parser.add_argument("--xw", type=float, help="x width of median filtering window for Cartesian grid (in km)")
@@ -99,6 +100,7 @@ for var in used_vars+args.exclude:
         keepvars.remove(var)
 
 flows_org = xr.open_mfdataset(fn_list, concat_dim=["omega"], combine="nested")[used_vars]
+
 flows_org["omega"] = np.array(args.omega).astype(float)
 if "ns" not in flows_org.dims:
     flows_org[used_vars] = flows_org[used_vars].expand_dims("ns", axis=0)
@@ -118,6 +120,16 @@ ixw = int(args.xw//flows0.attrs["xint"])
 iyw = int(args.yw//flows0.attrs["yint"])
 windows_sizes = {"it":(iTw//2)*2+1, dim1:(ixw//2)*2+1, dim2:(iyw//2)*2+1}
 logger.info(f"[Median filter window] {windows_sizes}")
+
+if args.itmin > 0 or args.itmax is not None or args.itstep > 1:
+    if args.itmax is None:
+        args.itmax = flows_org.it.size - 1
+    tmin = flows_org.it.isel(it=args.itmin).item()
+    tmax = flows_org.it.isel(it=args.itmax).item()
+    itmin = max(args.itmin - (windows_sizes["it"]//2+1), 0)
+    itmax = min(args.itmax + (windows_sizes["it"]//2+1), flows_org.it.size-1)
+    flows_org = flows_org.isel(it=slice(itmin, itmax+1, args.itstep))
+
 #%%
 def squeeze_cth(flows, minmax="max"):
     if minmax == "max":
@@ -262,6 +274,9 @@ if args.out_final_omega:
 
 logger.info(f"[FINALIZED] at epoch={ep+1}")
 #%% output
+if args.itmin > 0 or args.itmax is not None or args.itstep > 1:
+    final_flows = final_flows.sel(it=slice(tmin, tmax))
+
 for varname in final_flows:
     if "it_rel" in final_flows[varname].dims:
         final_flows[varname] = final_flows[varname].transpose("it", "it_rel", ...)
