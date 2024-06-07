@@ -52,7 +52,7 @@ except:
 fnames = pd.Series(sorted(glob.glob(args.glob_strings)))
 
 if len(fnames) == 0:
-    logger.error(f"No files found with the pattern: {args.glob_strings}")
+    raise FileNotFoundError(f"No files found with the pattern: {args.glob_strings}")
 
 logger.info(f"Found {len(fnames)} files in {os.path.dirname(os.path.abspath(args.glob_strings))}/")
 
@@ -65,8 +65,9 @@ for i, fname in enumerate(fnames):
     logger.info(f"Target {i}: {os.path.basename(fname)}")
 
 if len(fnames) >= 20:
-    logger.warning("Too many files to concat. Are you sure you want to concat all of them?")
+    logger.warning("Too many files to concat. Please make sure that is what you want.")
 #%%
+logger.info("Concatenating files...")
 all = None
 for fname in fnames:
     ds = xr.open_dataset(fname).swap_dims({"it":"time"})
