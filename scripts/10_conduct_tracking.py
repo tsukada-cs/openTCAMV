@@ -72,7 +72,7 @@ parser.add_argument("--Vth", type=float, default=5.0, help="threshold speed for 
 parser.add_argument("--Vs", default=80.0, type=float, help="search range for cloud tracking in velocity dimension (m/s)")
 parser.add_argument("--hs", type=int, help="Search range for cloud tracking in pixel count with higher priority over --Vs")
 parser.add_argument("--Vc", default=20.0, type=float, help="threshold to limit the maximum velocity change between consecutive images")
-parser.add_argument("--vlim", default=120.0, type=float, help="Threshold to limit the maximum speed (m/s)")
+parser.add_argument("--vlim", default=0, type=float, help="Threshold to limit the maximum speed (m/s)")
 parser.add_argument("--Sth0", default=0.8, type=float, help="minimum score required for the first-time tracking")
 parser.add_argument("--Sth1", default=0.8, type=float, help="minimum score required for the subsequent tracking")
 parser.add_argument("--Cth", default=3, type=float, help="minimum contrast to track the template")
@@ -364,6 +364,7 @@ if args.revrot:
 
 dt_rel = (ofl["time2"]-ofl["time2"].sel(it_rel=0)).data.astype('timedelta64[s]').astype(float)
 maxdts = np.max(np.abs(dt_rel), axis=1)
+
 #%% Perform tracking
 for j, tid0 in enumerate(tg.tolist()):
     # if j != 5: # for debug
@@ -537,13 +538,13 @@ if args.revrot:
         ofl["vxbm"] += u_rot
         ofl["vybm"] += v_rot
 #%% Perform wind-speed screening
-valid_tyx = np.zeros(vshape, bool)
+valid_tyx = np.ones(vshape, bool)
 if args.vlim > 0: # limiting speed
-    vabs = np.hypot(ofl[v1],ofl[v2])
-    valid_tyx = vabs <= args.vlim
+    valid_tyx *= (np.hypot(ofl[v1],ofl[v2]) <= args.vlim)
 
 if bothward: # limiting differences in backward & forward tracking
-    valid_tyx += (np.hypot(ofl["vxfm"]-ofl["vxbm"], ofl["vyfm"]-ofl["vybm"]) <= args.Vd**2)
+    if args.Vd > 0:
+        valid_tyx *= (np.hypot(ofl["vxfm"]-ofl["vxbm"], ofl["vyfm"]-ofl["vybm"]) <= args.Vd**2)
 
     if args.Td is not None:
         dot_product = ofl["vxfm"]*ofl["vxbm"] + ofl["vyfm"]*ofl["vybm"]
@@ -552,9 +553,9 @@ if bothward: # limiting differences in backward & forward tracking
         angle_diff = np.arccos(dot_product/vabsf/vabsb)
         
         if args.Vth > 0:
-            valid_tyx += ~((angle_diff > np.deg2rad(args.Td)) * ((vabsf >= args.Vth) + (vabsb >= args.Vth)))
+            valid_tyx *= ~((angle_diff > np.deg2rad(args.Td)) * ((vabsf >= args.Vth) + (vabsb >= args.Vth)))
         else:
-            valid_tyx += ~(angle_diff > np.deg2rad(args.Td))
+            valid_tyx *= ~(angle_diff > np.deg2rad(args.Td))
 ofl = ofl.drop_vars(["vxfm","vyfm","vxbm","vybm"])
 
 ofl[[v1,v2]] = ofl[[v1,v2]].where(valid_tyx)
@@ -567,7 +568,6 @@ if args.vagg in ("mean","startend"):
     valid_tityx = valid_tyx.expand_dims({"it_rel": ofl.it_rel}, axis=0)
     ofl[[loc1,loc2]] = ofl[[loc1,loc2]].where(valid_tityx)
 #%% initpos, alongtraj, PSR
-
 if args.record_initpos:
     if args.polar:
         ofl["x"] = ofl.r * np.cos(ofl.a)
