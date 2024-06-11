@@ -370,7 +370,7 @@ for j, tid0 in enumerate(tg.tolist()):
     # if j != 5: # for debug
     #     continue
     if (j%10) == 0 or j == tg.size-1:
-        logger.info(f"Processing: {j+1}/{tg.size}")
+        logger.info(f"[{os.getpid()}] Processing: {j+1}/{tg.size}")
     if maxdts[j] >= args.dtlimit:
         continue
     if args.revrot:
