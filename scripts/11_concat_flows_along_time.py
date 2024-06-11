@@ -39,7 +39,7 @@ parser.add_argument("--drop_vars", type=str, nargs="+", help="Variable names inc
 parser.add_argument("-o", "--oname", type=str, help="Output filename")
 
 sample_dir = f"{os.path.dirname(__file__)}/../sample"
-test_args = f"{sample_dir}/2017_Lan_ns7_nt1_rot0.0007_it*.nc".split()
+test_args = f"{sample_dir}/2017_Lan_ns7_nt1_rot0.0000_it*.nc".split()
 
 try:
     get_ipython().run_line_magic("load_ext", "autoreload")
@@ -77,9 +77,11 @@ for fname in fnames:
         all = ds
     else:
         all = xr.concat([all, ds], "time")
+#%%
 all = all.drop_duplicates("time")
 ditstep = all["it"][1]-all["it"][0]
-all["it"] = np.arange(all["it"].min(), all["it"].size*ditstep+ditstep, ditstep)
+all["it"] = xr.DataArray(np.arange(all["it"].min(), all["it"].min()+(all["it"].size-1)*ditstep+ditstep, ditstep), dims="time")
+all = all.swap_dims({"time":"it"})
 
 #%%
 if args.oname is None:
