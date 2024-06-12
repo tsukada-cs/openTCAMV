@@ -88,6 +88,7 @@ parser.add_argument("--out_score_ary", action="store_true", help="if output scor
 parser.add_argument("--out_psr", action="store_true", help="if output Peak-To-Sidelobe ratio of the score field")
 parser.add_argument("--sector", type=str, nargs="*", help="limiting sectors used for tracking")
 parser.add_argument("--dtlimit", default=200.0, type=float, help="specify maximum dt (in seconds)")
+parser.add_argument("--ref_dt", type=float, help="reference dt for calculating ixhw and iyhw from Vs (in seconds)")
 parser.add_argument("--revrot", default=0.0, type=float, help="angular velocity to rotate images (in rad/s). Positive (negative) value make crockwise (counterclocwise) rotation over time")
 parser.add_argument("--record_initpos", type=str, nargs="*", help="Record specified variable at their initial position")
 parser.add_argument("--record_alongtraj", type=str, nargs="*", help="Record specified variable along their trajectory")
@@ -333,11 +334,14 @@ if args.hs:
 else:
     setup_kwargs["vxhw"] = args.Vs
     setup_kwargs["vyhw"] = args.Vs
+
+    tdiff = np.diff(t)
+    if args.ref_dt is None:
+        args.ref_dt = np.max(tdiff[tdiff<=args.dtlimit])
+    vtt["ixhw"], vtt["iyhw"] = vtt.calc_ixyhw_from_v_eq_grid(args.Vs, args.Vs, args.ref_dt)
+
 vtt.setup_eq_grid(**setup_kwargs)
 
-tdiff = np.diff(t)
-dtmax = np.max(tdiff[tdiff<=args.dtlimit])
-vtt["ixhw"], vtt["iyhw"] = vtt.calc_ixyhw_from_v_eq_grid(args.Vs, args.Vs, dtmax)
 
 # Output setup
 ofl.attrs.update(vtt.attrs)
@@ -381,11 +385,9 @@ for j, tid0 in enumerate(tg.tolist()):
             vtt.o.z[tid0+it_rel_i,:,:] = np.array(img.rotate(deg_per_sec*dt, resample=Image.BICUBIC, fillcolor=zmiss))
     if forward:
         vtt["itstep"] = abs(vtt.itstep)
-        vtt["ixhw"], vtt["iyhw"] = vtt.calc_ixyhw_from_v_eq_grid(args.Vs, args.Vs, dtmax)
         fward_res = vtt.trac_eq_grid(tid0, xxg, yyg, out_subimage=args.out_subimage, out_score_ary=args.out_score_ary)
     if backward:
         vtt["itstep"] = -abs(vtt.itstep)
-        vtt["ixhw"], vtt["iyhw"] = vtt.calc_ixyhw_from_v_eq_grid(args.Vs, args.Vs, dtmax)
         bward_res = vtt.trac_eq_grid(tid0, xxg, yyg, out_subimage=args.out_subimage, out_score_ary=args.out_score_ary)
     # break
     if args.vagg == "org":
