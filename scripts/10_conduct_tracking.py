@@ -562,9 +562,9 @@ ofl = ofl.drop_vars(["vxfm","vyfm","vxbm","vybm"])
 
 ofl[[v1,v2]] = ofl[[v1,v2]].where(valid_tyx)
 if forward:
-    ofl["stf"] = ofl["stf"].where(valid_tyx * (ofl["stf"]==0), 10)
+    ofl["stf"] = xr.where(~valid_tyx * (ofl["stf"]==0), 10, ofl["stf"])
 if backward:
-    ofl["stb"] = ofl["stb"].where(valid_tyx * (ofl["stb"]==0), 10)
+    ofl["stb"] = xr.where(~valid_tyx * (ofl["stb"]==0), 10, ofl["stb"])
 
 if args.vagg in ("mean","startend"):
     valid_tityx = valid_tyx.expand_dims({"it_rel": ofl.it_rel}, axis=0)
