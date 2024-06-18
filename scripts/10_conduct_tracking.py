@@ -31,9 +31,7 @@ from pyVTTrac import VTTrac
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO, format="[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger.info(f"PID: {os.getpid()}")
 
 
@@ -87,8 +85,8 @@ parser.add_argument("--out_subimage", action="store_true", help="if output subim
 parser.add_argument("--out_score_ary", action="store_true", help="if output score array")
 parser.add_argument("--out_psr", action="store_true", help="if output Peak-To-Sidelobe ratio of the score field")
 parser.add_argument("--sector", type=str, nargs="*", help="limiting sectors used for tracking")
-parser.add_argument("--dtlimit", default=200.0, type=float, help="specify maximum dt (in seconds)")
-parser.add_argument("--ref_dt", type=float, help="reference dt for calculating ixhw and iyhw from Vs (in seconds)")
+parser.add_argument("--dtlimit", default=200.0, type=float, help="specify maximum time interval (in seconds)")
+parser.add_argument("--ref_dt", type=float, help="reference time interval for calculating ixhw and iyhw from Vs (in seconds)")
 parser.add_argument("--revrot", default=0.0, type=float, help="angular velocity to rotate images (in rad/s). Positive (negative) value make crockwise (counterclocwise) rotation over time")
 parser.add_argument("--record_initpos", type=str, nargs="*", help="Record specified variable at their initial position")
 parser.add_argument("--record_alongtraj", type=str, nargs="*", help="Record specified variable along their trajectory")
@@ -366,16 +364,16 @@ if args.revrot:
     it_rel_without_0 = it_rel[it_rel!=0]
     deg_per_sec = np.rad2deg(args.revrot)
 
-dt_rel = (ofl["time2"]-ofl["time2"].sel(it_rel=0)).data.astype('timedelta64[s]').astype(float)
-maxdts = np.max(np.abs(dt_rel), axis=1)
-
+time_intervals = (ofl["time2"].values[:,1:]-ofl["time2"].values[:,:-1]).astype('timedelta64[s]').astype(float)
+max_time_intervals = np.max(np.abs(time_intervals), axis=1)
 #%% Perform tracking
 for j, tid0 in enumerate(tg.tolist()):
     # if j != 5: # for debug
     #     continue
     if (j%10) == 0 or j == tg.size-1:
         logger.info(f"[{os.getpid()}] Processing: {j+1}/{tg.size}")
-    if maxdts[j] >= args.dtlimit:
+    if max_time_intervals[j] >= args.dtlimit:
+        logger.info(f"Max time interval is exceeded at {j}th iteration")
         continue
     if args.revrot:
         vtt.o.z[tid0,:,:] = z_values[tid0]
