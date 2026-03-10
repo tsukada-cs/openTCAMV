@@ -161,7 +161,7 @@ In this example, the script finalizes the tracking results of the sample data wi
 ## 3: Plot the tracking result
 Finally, you can plot the tracking result using the script located at `openTCAMV/scripts/30_plot_velocity2d.py`. The following example shows how to plot the 2D velocity field of the sample data.
 ```bash
-$ python 30_plot_velocity2d.py ../sample/2017_Lan_ns7_nt1.nc --it=24
+$ python ../scripts/30_plot_velocity2d.py ../sample/2017_Lan_ns7_nt1.nc --it=24
 ```
 In this example, the script plots the 2D velocity field of the sample data at the time index `--it=24`. For other options, see the help message of the script by running `python ../scripts/30_plot_velocity2d.py -h`.
 
@@ -170,4 +170,5 @@ From these steps, you can obtain the 2D velocity field of the sample data as sho
 *Wind distribution in the eye of Typhoon Lan (2017) at 2017-10-21 03:02:19 UTC. Wind vectors are represented by arrows, with color indicating wind speed (m/s). These vectors are overlaid on the visible image. Additionally, black contours depict cloud top height, spaced at 2 km intervals starting from 2 km.*
 
 ## References
-Tsukada, T., Horinouchi, T., & Tsujino, S. (2024). Wind distribution in the eye of tropical cyclone revealed by a novel atmospheric motion vector derivation. Journal of Geophysical Research: Atmospheres, 129, e2023JD040585. https://doi.org/10.1029/2023JD040585
+* Horinouchi, T., Tsujino, S., Hayashi, M., Shimada, U., Yanase, W., Wada, A., & Yamada, H. (2023). Stationary and Transient Asymmetric Features in Tropical Cyclone Eye with Wavenumber-1 Instability: Case Study for Typhoon Haishen (2020) with Atmospheric Motion Vectors from 30-Second Imaging. Monthly Weather Review, 151(1), 253–273. https://doi.org/10.1175/MWR-D-22-0179.1
+* Tsukada, T., Horinouchi, T., & Tsujino, S. (2024). Wind distribution in the eye of tropical cyclone revealed by a novel atmospheric motion vector derivation. Journal of Geophysical Research: Atmospheres, 129, e2023JD040585. https://doi.org/10.1029/2023JD040585
