@@ -510,7 +510,8 @@ if args.revrot:
     else:
         a2d = np.arctan2(ofl["y"].T, ofl["x"])
         r2d = np.hypot(ofl["y"].T, ofl["x"]).values
-    revrot_mps = args.revrot*r2d*1000
+    revrot_mps = args.revrot * r2d * 1000
+    dt_rel = (ofl["time2"].values - ofl["time2"].sel(it_rel=0).values[:, None]).astype('timedelta64[s]').astype(float)
     azimuth_displasement_on_it_rel = dt_rel * args.revrot
     if args.polar:
         ofl["vt"] += revrot_mps
