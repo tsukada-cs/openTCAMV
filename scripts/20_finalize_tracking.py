@@ -25,9 +25,6 @@ import argparse
 
 import numpy as np
 import xarray as xr
-import scipy.ndimage as ndi
-import matplotlib.pyplot as plt
-
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
