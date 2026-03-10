@@ -36,6 +36,8 @@ openTCAMV/
 * pandas
 * xarray
 * dask
+* pillow
+* matplotlib
 * netcdf4
 * pyVTTrac
 
