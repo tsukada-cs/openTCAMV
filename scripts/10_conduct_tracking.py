@@ -104,6 +104,8 @@ try:
     args = parser.parse_args(test_args)
 except:
     args = parser.parse_args()
+
+logger.info(f"[{os.getpid()}] {args}")
 #%% input file open and select
 forward = (args.ward == "forward" or args.ward == "bothward")
 backward = (args.ward == "backward" or args.ward == "bothward")
@@ -373,7 +375,7 @@ for j, tid0 in enumerate(tg.tolist()):
     if (j%10) == 0 or j == tg.size-1:
         logger.info(f"[{os.getpid()}] Processing: {j+1}/{tg.size}")
     if max_time_intervals[j] >= args.dtlimit:
-        logger.info(f"Max time interval is exceeded at {j}th iteration")
+        logger.info(f"[{os.getpid()}] Max time interval is exceeded at {j}th iteration")
         continue
     if args.revrot:
         vtt.o.z[tid0,:,:] = z_values[tid0]
@@ -632,5 +634,5 @@ for key, value in ofl.attrs.items():
 for var in ofl:
     encoding[var] = {"complevel": args.complevel, "zlib": True}
 ofl.to_netcdf(args.ofn, encoding=encoding)
-logger.info(f"[SUCCESS] {args.ofn}")
+logger.info(f"[{os.getpid()}] SUCCESS: {args.ofn}")
 # %%

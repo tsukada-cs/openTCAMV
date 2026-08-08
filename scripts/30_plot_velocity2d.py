@@ -21,9 +21,12 @@ import xarray as xr
 import matplotlib.pyplot as plt
 
 
-argparser = argparse.ArgumentParser("Plot 2D velocity vectors on the x-y plane with the background of the CTH and B03 fields.")
+argparser = argparse.ArgumentParser("Plot 2D velocity vectors on the x-y plane with the background.")
 argparser.add_argument("ifn", help="Directory containing sample data")
 argparser.add_argument("--it", type=int, default=24, help="Time index to plot")
+argparser.add_argument("--band", type=str, default="B03", help="Band name to plot")
+argparser.add_argument("--rmax", type=float, help="Max plot radius")
+argparser.add_argument("--cthname", type=str, default="cth", help="Time index to plot")
 argparser.add_argument("--sstep", type=int, default=2, help="Spacing between drawn vectors")
 argparser.add_argument("--vector_duration", type=int, default=90, help="Duration of each vector in seconds. If 90, then vector length corresponds to the travel length during 90 sec")
 argparser.add_argument("--key_speed", type=int, default=50, help="Speed of the key vector")
@@ -40,6 +43,8 @@ except:
 
 # %%
 flows = xr.open_dataset(args.ifn)
+if args.rmax:
+    flows = flows.sel(x=slice(-args.rmax, args.rmax), y=slice(-args.rmax, args.rmax))
 flows["v"] = np.hypot(flows.vx, flows.vy)
 
 # %%
@@ -49,8 +54,8 @@ vector_duration = args.vector_duration
 key_speed = args.key_speed
 
 fig, ax = plt.subplots(figsize=(4.5,4.5), facecolor="w", dpi=300)
-ax.pcolormesh(flows.x, flows.y, flows["B03"][it], cmap="gray", vmin=-10, vmax=120, shading="auto")
-ax.contour(flows.x, flows.y, flows["cth"][it], colors="#333333", levels=np.r_[2:18:2], linewidths=0.7, alpha=0.7)
+ax.pcolormesh(flows.x, flows.y, flows[args.band][it], cmap="gray", vmin=-10, vmax=120, shading="auto")
+ax.contour(flows.x, flows.y, flows[args.cthname][it], colors="#333333", levels=np.r_[2:18:2], linewidths=0.7, alpha=0.7)
 
 mp = ax.quiver(
     flows.x[::sstep], flows.y[::sstep], flows.vx[it,::sstep,::sstep], flows.vy[it,::sstep,::sstep], flows.v[it,::sstep,::sstep], 
