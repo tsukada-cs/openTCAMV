@@ -1,0 +1,32 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=64"]
+
+[project]
+name = "opentcamv"
+version = "2.0.0"
+description = "Open source TC-specific AMV derivation scripts (core package)"
+readme = "README.md"
+license = { text = "BSD-2-Clause" }
+authors = [{ name = "Taiga Tsukada", email = "tsukada.met@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "xarray",
+    "dask",
+    "pillow",
+    "netcdf4",
+    "pyVTTrac>=2.1",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib"]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["opentcamv*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

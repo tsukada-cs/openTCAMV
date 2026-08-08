@@ -8,26 +8,45 @@ Open source TC-specific AMV derivation scripts.
 - Horinouchi, T., S. Tsujino, M. Hayashi, U. Shimada, W. Yanase, A. Wada, and H. Yamada, 2023: Stationary and Transient Asymmetric Features in Tropical Cyclone Eye with Wavenumber-1 Instability: Case Study for Typhoon Haishen (2020) with Atmospheric Motion Vectors from 30-Second Imaging. Monthly Weather Review, 151, 253–273, https://doi.org/10.1175/MWR-D-22-0179.1.  
 
 ## Version history
+[![2.0.0](https://img.shields.io/badge/2026--08--08-2.0.0-purple.svg?logo=github)](https://github.com/tsukada-cs/openTCAMV/releases/tag/2.0.0)
 [![1.0.0](https://img.shields.io/badge/2024--05--30-1.0.0-purple.svg?logo=github)](https://github.com/tsukada-cs/openTCAMV/releases/tag/1.0.0)
 
+v2.0.0 migrates to pyVTTrac v2 (native Fortran core, no Julia dependency)
+and moves the core tracking logic into an installable `opentcamv/` package.
+See `CHANGELOG.md` for the full list of changes, including bug fixes that
+change output versus v1 -- if you're upgrading from v1, read it before
+comparing results.
 
 ## Directory structure
 ```
 openTCAMV/
 ├── README.md
+├── CHANGELOG.md
 ├── requirements.txt
+├── pyproject.toml
+├── opentcamv/              # core tracking logic (installable package)
+│   ├── cli.py               # argparse definition + normalization
+│   ├── data.py               # input reading, time axis, Grid, mask
+│   ├── params.py             # TrackingSetup (derived parameters)
+│   ├── output.py             # output coords/Dataset/attrs, write
+│   ├── rotation.py           # --revrot window rotation
+│   ├── tracking.py           # per-tid0 time-window slicing + pyvttrac.track()
+│   ├── aggregate.py          # --vagg, trajectory concat, polar conversion
+│   ├── screening.py          # revrot restore, --vlim/--Vd/--Td/--Vth
+│   └── records.py            # --record_initpos/--record_alongtraj/--out_cthmin/max/psr
+├── scripts/                # thin CLI drivers over opentcamv/
+│   ├── 10_conduct_tracking.py
+│   ├── 11_concat_flows_along_time.py
+│   ├── 20_finalize_tracking.py
+│   └── 30_plot_velocity2d.py
+├── tests/
 ├── docs
-│   └── sample
-│       ├── README.md
-│       └── AMVs_it24.png
-├── sample
-│   ├── sample.sh
-│   └── (2017_Lan_aeqd_sample.nc) # see docs/sample/README.md
-└── scripts
-    ├── 10_conduct_tracking.py
-    ├── 11_concat_flows_along_time.py
-    ├── 20_finalize_tracking.py
-    └── 30_plot_velocity2d.py
+│   └── sample
+│       ├── README.md
+│       └── AMVs_it24.png
+└── sample
+    ├── sample.sh
+    └── (2017_Lan_aeqd_sample.nc) # see docs/sample/README.md
 ```
 
 ## Dependencies
@@ -37,26 +56,20 @@ openTCAMV/
 * xarray
 * dask
 * pillow
-* matplotlib
 * netcdf4
-* pyVTTrac
+* pyVTTrac >= 2.1
+* matplotlib (only for `30_plot_velocity2d.py`)
+
+Target platforms are Linux and macOS (pyVTTrac v2's native Fortran core doesn't support Windows).
 
 ## Installation
-`openTCAMV` is not a package, just a collection of scripts. Users can download the repository and use the scripts directly. `$` means the command line prompt; do not type it.
 ```bash
 $ git clone https://github.com/tsukada-cs/openTCAMV.git
+$ pip install -e openTCAMV
 ```
+This installs `opentcamv` (editable) along with its dependencies, including `pyVTTrac` -- a plain `pip install pyVTTrac` is all that library itself needs now (no Julia, no git submodule). `scripts/*.py` can then be run directly; they `import opentcamv` without any `sys.path` setup.
 
-To use the scripts, users need to install the required libraries. The following command installs the required libraries.
-```bash
-$ pip install -r openTCAMV/requirements.txt
-```
-For installing `pyVTTrac`, please refer to the following steps.
-```bash
-$ git clone --recurse-submodules https://github.com/tsukada-cs/pyVTTrac.git
-$ cd pyVTTrac
-$ pip install .
-```
+If you only want `30_plot_velocity2d.py`'s plotting, also run `pip install matplotlib` (or `pip install -e "openTCAMV[plot]"`).
 
 ## Tutorial
 There is sample data and code available for a tutorial.  
@@ -79,11 +92,15 @@ The x and y dimensions should have "units" attribute with "km".
 #### Usage
 **Basic usage**
 ```bash
-$ python 10_conduct_tracking.py ifn [-s start] [-e end] [-o ofn] [-n ntrac] [--ward ward] [--tidstep tidstep] [--traj_int traj_int] [-v vagg] [--polar] [--use_init_temp] [--no_subgrid] [--itran itran] [--xgran xgran] [--xint xint] [--ygran ygran] [--yint yint] [--rgran rgran] [--rint rint] [--nath nath] [--ns ns] [--nsx nsx] [--nsy nsy] [--Vd Vd] [--Td Td] [--Vth Vth] [--Vs Vs] [--hs hs] [--Vc Vc] [--vlim vlim] [--Sth0 Sth0] [--Sth1 Sth1] [--Cth Cth] [--peak_inside_th peak_inside_th] [--itstep itstep] [--varname varname] [--maskvar maskvar] [--mask_lower_lim mask_lower_lim] [--mask_upper_lim mask_upper_lim] [--min_samples min_samples] [--out_subimage] [--out_score_ary] [--out_psr] [--sector sector] [--dtlimit dtlimit] [--ref_dt ref_dt] [--revrot revrot] [--record_initpos record_initpos] [--record_alongtraj record_alongtraj] [--cth cth] [--out_cthmin] [--out_cthmax] [--complevel complevel]
+$ python 10_conduct_tracking.py ifn [-s start] [-e end] [-o ofn] [-n ntrac] [--ward ward] [--tidstep tidstep] [--traj_int traj_int] [-v vagg] [--polar] [--use_init_temp] [--no_subgrid] [--subgrid subgrid] [--method method] [--workers workers] [--itran itran] [--xgran xgran] [--xint xint] [--ygran ygran] [--yint yint] [--rgran rgran] [--rint rint] [--nath nath] [--ns ns] [--nsx nsx] [--nsy nsy] [--Vd Vd] [--Td Td] [--Vth Vth] [--Vs Vs] [--hs hs] [--Vc Vc] [--vlim vlim] [--Sth0 Sth0] [--Sth1 Sth1] [--Cth Cth] [--peak_inside_th peak_inside_th] [--itstep itstep] [--varname varname] [--maskvar maskvar] [--mask_lower_lim mask_lower_lim] [--mask_upper_lim mask_upper_lim] [--min_samples min_samples] [--out_subimage] [--out_score_ary] [--out_psr] [--sector sector] [--dtlimit dtlimit] [--ref_dt ref_dt] [--revrot revrot [revrot ...]] [--record_initpos record_initpos] [--record_alongtraj record_alongtraj] [--cth cth] [--out_cthmin] [--out_cthmax] [--complevel complevel]
 ```
-**Example**
+**Example** (single Omega)
 ```bash
 $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.0020 --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 -o=../sample/2017_Lan_ns7_nt1_test.nc --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
+```
+**Example** (multiple Omega values, looped over within one process; `-o` needs an `<omega>` placeholder)
+```bash
+$ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 -o='../sample/2017_Lan_ns7_nt1_rot<omega>.nc' --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
 ```
 
 #### Command line arguments
@@ -100,7 +117,10 @@ $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.002
 | -v, --vagg         | str   | mean     | how to aggregate the vectors; 'org' for original vectors without any aggregations, 'mean' for the velocity be averaging vectors, 'startend' for the veclocity by connecting the start and end points | org, mean, startend         |
 | --polar            | bool  |          | if specified, use polar coordinates points as initial template positioning, if not use Cartesian grid                                                                                                |                             |
 | --use_init_temp    | bool  |          | use initial template through tracking without updating the template                                                                                                                                  |                             |
-| --no_subgrid       | bool  |          | if specified, do not perform a subgrid estimation                                                                                                                                                    |                             |
+| --no_subgrid       | bool  |          | alias for `--subgrid=none`                                                                                                                                                                           |                             |
+| --subgrid          | str   | paraboloid | subgrid peak-refinement method                                                                                                                                                                     | paraboloid, gaussian, none  |
+| --method           | str   | xcor     | score method                                                                                                                                                                                          | xcor, ncov                  |
+| --workers          | int   |          | OpenMP thread count. Unset = OpenMP default (usually all cores), 1 = sequential                                                                                                                      |                             |
 | --itran            | slice |          | time-axis colon-separated slice of initial time for start tracking, with higher priority over --start and --end                                                                                      |                             |
 | --xgran            | slice | -50:50   | x-axis colon-separated slice of initial template positions (with interval of --xint)                                                                                                                 |                             |
 | --xint             | float | 1.0      | x-axis interval of initial template positions in the (equally spaced grid)                                                                                                                           |                             |
@@ -112,7 +132,7 @@ $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.002
 | --ns               | int   | 11       | template size in pixel dimension                                                                                                                                                                     |                             |
 | --nsx              | int   |          | template width with higher priority over --ns                                                                                                                                                        |                             |
 | --nsy              | int   |          | template height with higher priority over --ns                                                                                                                                                       |                             |
-| --Vd               | float | 20.0     | threshold to limit the maximum velocity difference between velocities obtained from forward and backward tracking as vectors                                                                         |                             |
+| --Vd               | float | 20.0     | threshold to limit the maximum velocity difference between velocities obtained from forward and backward tracking as vectors (compared directly against Vd -- fixed in v2.0.0, see CHANGELOG.md)     |                             |
 | --Td               | float |          | threshold to limit the maximum angle difference between velocities obtained from forward and backward tracking as vectors                                                                            |                             |
 | --Vth              | float | 5.0      | threshold speed for screening with --Td                                                                                                                                                              |                             |
 | --Vs               | float | 80.0     | search range for cloud tracking in velocity dimension (m/s)                                                                                                                                          |                             |
@@ -135,7 +155,7 @@ $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.002
 | --sector           | str   |          | limiting sectors used for tracking                                                                                                                                                                   |                             |
 | --dtlimit          | float | 200.0    | specify maximum time interval (in seconds)                                                                                                                                                           |                             |
 | --ref_dt           | float |          | reference time interval for calculating ixhw and iyhw from Vs (in seconds)                                                                                                                           |                             |
-| --revrot           | float | 0.0      | angular velocity to rotate images (in rad/s). Positive (negative) value make crockwise (counterclocwise) rotation over time                                                                          |                             |
+| --revrot           | float | [0.0]    | angular velocity/velocities to rotate images (in rad/s). Positive (negative) value make crockwise (counterclocwise) rotation over time. Accepts multiple values (`nargs="+"`), looped over within one process; `-o` then needs an `<omega>` placeholder |                             |
 | --record_initpos   | str   |          | Record specified variable at their initial position                                                                                                                                                  |                             |
 | --record_alongtraj | str   |          | Record specified variable along their trajectory                                                                                                                                                     |                             |
 | --cth              | str   | cth      | cloud-top height variable name                                                                                                                                                                       |                             |

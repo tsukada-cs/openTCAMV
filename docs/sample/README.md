@@ -6,6 +6,8 @@ $ cd openTCAMV/sample
 
 Thi document follows the [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585) method to conduct cloud tracking for the sample data of Typhoon Lan (2017). Almost settings are the same as the original paper.
 
+> **v2.0.0 note**: the numbers and figure below were regenerated with openTCAMV v2.0.0 (pyVTTrac v2), using the same `--xint=1 --yint=1 --Vs=10` density as v1's `sample.sh` and the paper. Two things changed the result versus v1: pyVTTrac's cross-correlation scoring was numerically stabilized (v1 could over-estimate scores for high-offset variables like `B03`, occasionally accepting tracks that shouldn't have passed), and `--Vd` — the forward/backward velocity-difference screen — was fixed from a dimensionally-broken comparison that effectively never rejected anything (see the top-level `CHANGELOG.md`). On this sample at this density (`--revrot=0.0000`), 8.8% of the 91x91x48 (x, y, it) grid points end up valid (`--Vd=20`, matching v1's value — `--Vd=30` gives the same 8.8%, confirming `--Vd` isn't the limiting factor at this density; most rejections are low-contrast/no-clear-peak points in cloud-free or low-texture regions, which a dense 1 km grid inevitably includes a lot of). We don't have a same-density v1 run to compare against directly (v1 can no longer be executed — its Julia backend is gone — and the only v1 output on hand when this note was written happened to use a coarser, non-representative `--xint=5 --yint=5 --Vs=40` test grid, at which coverage dropped from 76% to 29-35% depending on `--Vd`); the figure below is the right visual check instead — a coherent cyclonic circulation around the eye, consistent with Tsukada et al. (2024)'s Figure 12.
+
 ## Data
 [![Data](https://img.shields.io/badge/Data-2017__Lan__aeqd__sample.nc-darkgreen.svg?logo=github)](https://github.com/tsukada-cs/openTCAMV/releases)  
 The sample data is available on the "Release" page of the openTCAMV GitHub repository. Please download the sample data from the following link:
@@ -90,7 +92,7 @@ Following is an example of how to use this script to conduct cloud tracking for 
 # 1-1 Conduct tracking without rotation
 $ revrot=0.0000
 $ python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc --revrot $revrot --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 \
-    -o=2017_Lan_ns7_nt1_rot${revrot}.nc --ygran=-45:45 --xgran=-45:45 --yint=5 --xint=5 --traj_int=1 --Vs=40 \
+    -o=2017_Lan_ns7_nt1_rot${revrot}.nc --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 \
     --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
 ```
 In this example, cloud tracking is conducted for `--varname="B03"` variable with the reverse rotation speed of `--revrot=0.0000` rad/s (i.e., no rotation). The template size is set to `--ns=7` px, and the tracking is conducted for `--ntrac=1` time step for both backward and forward time direction. The tracking result with cross correlation lower than `--Sth0=0.7` is rejected. The output file is named `-o=2017_Lan_ns7_nt1_rot0.0000.nc`. For other options, see the help message of the script by running `python ../scripts/10_conduct_tracking.py -h`.
@@ -111,8 +113,8 @@ $ for it1 in $(seq 0 $it_width $((ntime-1))); do
     it2_4digits=$(printf "%04d" $it2)  # Format it2 to 4 digits
 
     python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc --revrot $revrot --itran=$it1:$it2 --ns=7 --ntrac=1 --Sth0=0.7 \
-        -o=2017_Lan_ns7_nt1_rot${revrot}_it${it1_4digits}-${it2_4digits}.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --xint=5 --yint=5 --traj_int=1 --Vs=40 \
-        --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5 &
+        -o=2017_Lan_ns7_nt1_rot${revrot}_it${it1_4digits}-${it2_4digits}.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 \
+        --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5 --workers 1 &
     if [ $(jobs | wc -l) -ge $max_process ]; then
         wait
     fi
@@ -125,18 +127,17 @@ $ python 11_concat_flows_along_time.py ../sample/2017_Lan_ns7_nt1_rot0.0000_it*.
 ```
 For details of the script, see the help message by running `python ../scripts/11_concat_flows_along_time.py -h`.
 
-### 1-3: Conduct cloud tracking considering rotation with multiprocessing
-The method of [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585) uses a reverse rotation speed to correct the rotation of the satellite imagery. The following example shows how to conduct cloud tracking for the sample data with different reverse rotation speeds. In this example, cloud tracking is conducted for the sample data with reverse rotation speeds of `0.0000, 0.0005, 0.0010, 0.0015, 0.0020, 0.0025` rad/s. The script waits until all processes are finished before proceeding to the next step.
-Note that the cloud traking search range is set to `--Vs=10` m/s, which is the same setting as the [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585). The search range can be adjusted according to the dataset.
+### 1-3: Conduct cloud tracking considering rotation
+The method of [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585) uses a reverse rotation speed to correct the rotation of the satellite imagery. `--revrot` accepts multiple values at once; they're looped over inside a single process (sharing the input-file read and per-time-step window slicing across all of them), rather than one process per value as in earlier versions. The following example conducts cloud tracking with reverse rotation speeds of `0.0000, 0.0005, 0.0010, 0.0015, 0.0020, 0.0025` rad/s. `-o` must contain an `<omega>` placeholder when `--revrot` has more than one value, which gets replaced with each value (formatted to 4 decimal places) to name that value's output file.
 
 ```bash
-# 1-3. Conduct tracking with multiprocessing in rotation speed
-$ for revrot in 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025; do
-  python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc --revrot $revrot --ns=7 --ntrac=1 --Sth0=0.7 \
-    -o=2017_Lan_ns7_nt1_rot${revrot}.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 \
-    --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5 &
-  done; wait
+# 1-3. Conduct tracking, looping over rotation speed within a single process
+$ python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc \
+    --revrot 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --ns=7 --ntrac=1 --Sth0=0.7 \
+    -o='2017_Lan_ns7_nt1_rot<omega>.nc' --varname=B03 --ygran=-45:45 --xgran=-45:45 --xint=5 --yint=5 --traj_int=1 --Vs=40 --vlim=120 \
+    --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
 ```
+To combine this with the `--itran`-based multiprocessing from step 1-2 (running several time-index chunks as separate OS processes), pass `--workers 1` (or set `OMP_NUM_THREADS=1`) to each process so they don't oversubscribe CPU cores against each other.
 
 ## 2: Finalize the tracking result
 The finalization script is located at `openTCAMV/scripts/20_finalize_tracking.py`. This script finalizes the tracking result by removing the tracking using the updating/rejecting procedure of the [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585).

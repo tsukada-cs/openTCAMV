@@ -1,9 +1,11 @@
-# 1. Conduct tracking with multiprocessing in rotation speed
-for revrot in 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025; do
-python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc --revrot $revrot --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 \
-    -o=2017_Lan_ns7_nt1_rot${revrot}.nc --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 \
-    --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5 &
-done; wait
+# 1. Conduct tracking, looping over rotation speed within a single process
+python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc \
+    --revrot 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 \
+    -o='2017_Lan_ns7_nt1_rot<omega>.nc' --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 \
+    --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
+## To run one Omega per process instead (e.g. for external parallelism),
+## pass a single --revrot value per invocation and --workers 1 (or set
+## OMP_NUM_THREADS=1) to avoid oversubscribing CPU cores across processes.
 
 # 2-1. Finalize tracking
 python ../scripts/20_finalize_tracking.py "2017_Lan_ns<ns>_nt1_rot<omega>.nc" \
