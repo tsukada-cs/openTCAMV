@@ -35,32 +35,26 @@ $ ncdump -h 2017_Lan_aeqd_sample.nc
 # variables:
 #         double clon(t) ;
 #                 clon:_FillValue = NaN ;
-#                 clon:standard_name = "clon" ;
 #                 clon:long_name = "central longitude" ;
 #                 clon:units = "degrees_east" ;
 #         double clat(t) ;
 #                 clat:_FillValue = NaN ;
-#                 clat:standard_name = "clat" ;
 #                 clat:long_name = "central latitude" ;
 #                 clat:units = "degrees_north" ;
 #         float B03(t, y, x) ;
 #                 B03:_FillValue = NaNf ;
-#                 B03:standard_name = "B03" ;
 #                 B03:long_name = "toa_bidirectional_reflectance" ;
 #                 B03:units = "%" ;
 #         float B13(t, y, x) ;
 #                 B13:_FillValue = NaNf ;
-#                 B13:standard_name = "B13" ;
 #                 B13:long_name = "toa_brightness_temperature" ;
 #                 B13:units = "K" ;
 #         float B14(t, y, x) ;
 #                 B14:_FillValue = NaNf ;
-#                 B14:standard_name = "B14" ;
 #                 B14:long_name = "toa_brightness_temperature" ;
 #                 B14:units = "K" ;
 #         float cth(t, y, x) ;
 #                 cth:_FillValue = NaNf ;
-#                 cth:standard_name = "cth" ;
 #                 cth:long_name = "cloud top height" ;
 #                 cth:units = "km" ;
 #         int64 t(t) ;
@@ -68,12 +62,10 @@ $ ncdump -h 2017_Lan_aeqd_sample.nc
 #                 t:calendar = "proleptic_gregorian" ;
 #         double x(x) ;
 #                 x:_FillValue = NaN ;
-#                 x:standard_name = "x" ;
 #                 x:long_name = "x from TC center" ;
 #                 x:units = "km" ;
 #         double y(y) ;
 #                 y:_FillValue = NaN ;
-#                 y:standard_name = "y" ;
 #                 y:long_name = "y from TC center" ;
 #                 y:units = "km" ;
 # 
@@ -99,7 +91,7 @@ In this example, cloud tracking is conducted for `--varname="B03"` variable with
 
 
 ### 1-2: Multiprocessing
-To speed up the cloud tracking process, you can use multiprocessing. The following example shows how to conduct cloud tracking for the sample data using multiple processes. In this example, the time indices are divided into five groups, and each group is processed by a separate process. The maximum number of processes is set to 5. The script waits until all processes are finished before proceeding to the next step.
+`10_` now shares the input read, per-time-step window slicing, and (since v2.0.0) every `--revrot` value across a single process, so this sample (6 Omega values, 91x91, 48 time steps) finishes in well under a minute on one process -- splitting by time index is no longer necessary for speed at this size. It's still useful for very large domains/time series that don't fit in memory in one process, or for distributing work across a cluster; `11_concat_flows_along_time.py` (step 1-2, continued, below) exists for exactly that case. The following example shows how to conduct cloud tracking for the sample data using multiple processes anyway, for illustration. In this example, the time indices are divided into five groups, and each group is processed by a separate process. The maximum number of processes is set to 5. The script waits until all processes are finished before proceeding to the next step.
 ```bash
 # 1-2. Conduct tracking with multiprocessing
 $ revrot=0.0000
@@ -123,41 +115,39 @@ $ for it1 in $(seq 0 $it_width $((ntime-1))); do
 The above multiprocessing will make the output files separated by the time indices. To merge the output files, you can use the following command:
 ```bash
 # 1-2 (continued). Concatenate the output files
-$ python 11_concat_flows_along_time.py ../sample/2017_Lan_ns7_nt1_rot0.0000_it*.nc --exclude_texts concat -o ../sample/2017_Lan_ns7_nt1_concat.nc
+$ python 11_concat_flows_along_time.py -g '../sample/2017_Lan_ns7_nt1_rot0.0000_it*.nc' --exclude_texts concat -o ../sample/2017_Lan_ns7_nt1_concat.nc
 ```
 For details of the script, see the help message by running `python ../scripts/11_concat_flows_along_time.py -h`.
 
 ### 1-3: Conduct cloud tracking considering rotation
-The method of [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585) uses a reverse rotation speed to correct the rotation of the satellite imagery. `--revrot` accepts multiple values at once; they're looped over inside a single process (sharing the input-file read and per-time-step window slicing across all of them), rather than one process per value as in earlier versions. The following example conducts cloud tracking with reverse rotation speeds of `0.0000, 0.0005, 0.0010, 0.0015, 0.0020, 0.0025` rad/s. `-o` must contain an `<omega>` placeholder when `--revrot` has more than one value, which gets replaced with each value (formatted to 4 decimal places) to name that value's output file.
+The method of [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585) uses a reverse rotation speed to correct the rotation of the satellite imagery. `--revrot` accepts multiple values at once; they're looped over inside a single process (sharing the input-file read and per-time-step window slicing across all of them), rather than one process per value as in earlier versions. The following example conducts cloud tracking with reverse rotation speeds of `0.0000, 0.0005, 0.0010, 0.0015, 0.0020, 0.0025` rad/s. The default output is a single file holding every value along an `omega` dimension; pass `--split_omega` (and give `-o` an `<omega>` placeholder) for the old one-file-per-value layout instead.
 
 ```bash
 # 1-3. Conduct tracking, looping over rotation speed within a single process
 $ python ../scripts/10_conduct_tracking.py 2017_Lan_aeqd_sample.nc \
     --revrot 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --ns=7 --ntrac=1 --Sth0=0.7 \
-    -o='2017_Lan_ns7_nt1_rot<omega>.nc' --varname=B03 --ygran=-45:45 --xgran=-45:45 --xint=5 --yint=5 --traj_int=1 --Vs=40 --vlim=120 \
+    -o=2017_Lan_ns7_nt1_candidates.nc --varname=B03 --ygran=-45:45 --xgran=-45:45 --xint=1 --yint=1 --traj_int=1 --Vs=10 \
     --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
 ```
-To combine this with the `--itran`-based multiprocessing from step 1-2 (running several time-index chunks as separate OS processes), pass `--workers 1` (or set `OMP_NUM_THREADS=1`) to each process so they don't oversubscribe CPU cores against each other.
+This uses the same `--xint`/`--yint`/`--Vs` density as step 1-1 and the paper (a 1 km seed grid; a coarser grid like `--xint=5 --yint=5` looks like far less coverage in the final plot, which is a resolution artifact, not a tracking-quality difference). To combine this with the `--itran`-based multiprocessing from step 1-2 (running several time-index chunks as separate OS processes), pass `--workers 1` (or set `OMP_NUM_THREADS=1`) to each process so they don't oversubscribe CPU cores against each other.
 
 ## 2: Finalize the tracking result
 The finalization script is located at `openTCAMV/scripts/20_finalize_tracking.py`. This script finalizes the tracking result by removing the tracking using the updating/rejecting procedure of the [Tsukada et al. (2024)](https://doi.org/10.1029/2023JD040585).
 ```bash
 # 2-1. Finalize tracking
-$ python ../scripts/20_finalize_tracking.py "2017_Lan_ns<ns>_nt1_rot<omega>.nc" \
-    --omega 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --ns=7 \
+$ python ../scripts/20_finalize_tracking.py 2017_Lan_ns7_nt1_candidates.nc --ns=7 \
     --exclude stf stb score_ary psr -o 2017_Lan_ns7_nt1_ref.nc
 ```
-In this example, the script finalizes the tracking results of the sample data with reverse rotation speeds of `0.0000, 0.0005, 0.0010, 0.0015, 0.0020, 0.0025` rad/s. The filenames are made by replacing `<ns>` and `<omega>` with `--ns` and `--omega`. The output file is named `2017_Lan_ns7_nt1_ref.nc`. For other options, see the help message of the script by running `python ../scripts/20_finalize_tracking.py -h`.
+In this example, the script finalizes the tracking results of the sample data across every reverse rotation speed step 1-3 tracked (`0.0000, 0.0005, 0.0010, 0.0015, 0.0020, 0.0025` rad/s), read directly from `2017_Lan_ns7_nt1_candidates.nc`'s `omega` dimension -- `--omega` isn't needed here (it's only required for the legacy one-file-per-`(ns, omega)` input layout, e.g. after `--split_omega`). The output file is named `2017_Lan_ns7_nt1_ref.nc`. For other options, see the help message of the script by running `python ../scripts/20_finalize_tracking.py -h`.
 
 To make a better estimation on the striations speed, the result obtained in the previous step is used as a reference flow to find the *striation grids*. The following example shows how to finalize the tracking result using the reference flow with the striations treatment.
 ```bash
 # 2-2. Finalize tracking with reference flows
-python ../scripts/20_finalize_tracking.py "2017_Lan_ns<ns>_nt1_rot<omega>.nc" \
-    --omega 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --ns=7 \
+python ../scripts/20_finalize_tracking.py 2017_Lan_ns7_nt1_candidates.nc --ns=7 \
     --ref_flows=2017_Lan_ns7_nt1_ref.nc --tau_stri=24 --v_stri=20 --cth_stri=6 --omega_stri=0.0015 \
     --exclude stf stb score_ary psr -o=2017_Lan_ns7_nt1.nc
 ```
-In this example, the script finalizes the tracking results of the sample data with reverse rotation speeds of `0.0000, 0.0005, 0.0010, 0.0015, 0.0020, 0.0025` rad/s using the reference flow `2017_Lan_ns7_nt1_ref.nc`. The output file is named `2017_Lan_ns7_nt1.nc`. For other options, see the help message of the script by running `python ../scripts/20_finalize_tracking.py -h`.
+In this example, the script finalizes the tracking results of the sample data across the same reverse rotation speeds using the reference flow `2017_Lan_ns7_nt1_ref.nc`. The output file is named `2017_Lan_ns7_nt1.nc`. For other options, see the help message of the script by running `python ../scripts/20_finalize_tracking.py -h`.
 
 ## 3: Plot the tracking result
 Finally, you can plot the tracking result using the script located at `openTCAMV/scripts/30_plot_velocity2d.py`. The following example shows how to plot the 2D velocity field of the sample data.

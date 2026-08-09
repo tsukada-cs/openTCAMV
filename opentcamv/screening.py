@@ -1,7 +1,7 @@
 """--revrot restoration to the inertial frame, and vlim/Vd/Td/Vth screening.
 
 Ported from `10_conduct_tracking.py:508-568`, operating on a single Omega's
-completed output Dataset (v1 ran one Omega per process; Phase 4 loops Omega
+completed output Dataset (v1 ran one Omega per process; loops Omega
 inside one process, but each Omega still gets restored/screened independently
 on its own `ofl`).
 """
@@ -30,31 +30,36 @@ def restore_revrot(ofl: xr.Dataset, args, omega: float, names: AxisNames) -> Non
         a2d = np.arctan2(ofl["y"].T, ofl["x"])
         r2d = np.hypot(ofl["y"].T, ofl["x"]).values
 
-    revrot_mps = omega * r2d * 1000
+    # `.astype(np.float32)` below is precision-only (matches the rest of
+    # the output schema's dtype) -- it doesn't touch the add-back formula
+    # or sign convention itself, both of which are load-bearing (see
+    # CLAUDE.md). Without it, `omega * r2d` (r2d/a2d come from float64
+    # coordinate arrays) silently promotes vx/vy/xloc/yloc to float64.
+    revrot_mps = (omega * r2d * 1000).astype(np.float32)
     dt_rel = (ofl["time2"].values - ofl["time2"].sel(it_rel=0).values[:, None]).astype("timedelta64[s]").astype(float)
-    azimuth_displacement_on_it_rel = dt_rel * omega
+    azimuth_displacement_on_it_rel = (dt_rel * omega).astype(np.float32)
 
     if args.polar:
         ofl["vt"] = ofl["vt"] + revrot_mps
-        ofl["aloc"] = (ofl["aloc"] + azimuth_displacement_on_it_rel[:, :, None, None]) % (2 * np.pi)
+        ofl["aloc"] = ((ofl["aloc"] + azimuth_displacement_on_it_rel[:, :, None, None]) % (2 * np.pi)).astype(np.float32)
     else:
-        u_rot = -np.sin(a2d) * revrot_mps
-        v_rot = np.cos(a2d) * revrot_mps
+        u_rot = (-np.sin(a2d) * revrot_mps).astype(np.float32)
+        v_rot = (np.cos(a2d) * revrot_mps).astype(np.float32)
         ofl["vx"] = ofl["vx"] + u_rot
         ofl["vy"] = ofl["vy"] + v_rot
         aloc = np.arctan2(ofl["yloc"], ofl["xloc"]).values
         aloc = aloc + azimuth_displacement_on_it_rel[:, :, None, None]
         rloc = np.hypot(ofl["yloc"], ofl["xloc"]).values
-        ofl["xloc"].data = np.cos(aloc) * rloc
-        ofl["yloc"].data = np.sin(aloc) * rloc
+        ofl["xloc"].data = (np.cos(aloc) * rloc).astype(np.float32)
+        ofl["yloc"].data = (np.sin(aloc) * rloc).astype(np.float32)
 
     if bothward:
         if args.polar:
             x = ofl["r"] * np.cos(ofl["a"])
             y = ofl["r"] * np.sin(ofl["a"])
             a2d = np.arctan2(y, x)
-        u_rot = -np.sin(a2d) * revrot_mps
-        v_rot = np.cos(a2d) * revrot_mps
+        u_rot = (-np.sin(a2d) * revrot_mps).astype(np.float32)
+        v_rot = (np.cos(a2d) * revrot_mps).astype(np.float32)
         ofl["vxfm"] = ofl["vxfm"] + u_rot
         ofl["vyfm"] = ofl["vyfm"] + v_rot
         ofl["vxbm"] = ofl["vxbm"] + u_rot

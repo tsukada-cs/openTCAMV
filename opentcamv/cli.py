@@ -20,7 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("ifn", type=str, help="file path to input NetCDF file")
     parser.add_argument("-s", "--start", type=str, help="start time in yyyymmddTHHMMSS format")
     parser.add_argument("-e", "--end", type=str, help="end time in yyyymmddTHHMMSS format")
-    parser.add_argument("-o", "--ofn", default="./tmp.nc", type=str, help="output NetCDF file path. Must contain a `<omega>` placeholder when --revrot has more than one value")
+    parser.add_argument("-o", "--ofn", default="./tmp.nc", type=str, help="output NetCDF file path. Must contain a `<omega>` placeholder when --split_omega is set with more than one --revrot value")
     parser.add_argument("-n", "--ntrac", default=2, type=int, help="The number of tracking for both forward and backward tracking")
     parser.add_argument("--ward", type=str, default="bothward", choices=["bothward", "forward", "backward"], help="time direction for tracking")
     parser.add_argument("--tidstep", default=1, type=int, help="time index interval of initial time for start tracking (1 means every time index)")
@@ -67,6 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dtlimit", default=200.0, type=float, help="specify maximum time interval (in seconds)")
     parser.add_argument("--ref_dt", type=float, help="reference time interval for calculating ixhw and iyhw from Vs (in seconds)")
     parser.add_argument("--revrot", default=[0.0], type=float, nargs="+", help="angular velocity/velocities to rotate images (in rad/s). Positive (negative) value make crockwise (counterclocwise) rotation over time. Multiple values are looped over within a single process (see -o)")
+    parser.add_argument("--split_omega", action="store_true", help="write one file per --revrot value (v1-compatible; requires a `<omega>` placeholder in -o/--ofn), instead of the default single file with an `omega` dimension")
     parser.add_argument("--record_initpos", type=str, nargs="*", help="Record specified variable at their initial position")
     parser.add_argument("--record_alongtraj", type=str, nargs="*", help="Record specified variable along their trajectory")
     parser.add_argument("--cth", type=str, default="cth", help="cloud top height variable name")
@@ -82,8 +83,8 @@ def normalize_args(args: argparse.Namespace) -> argparse.Namespace:
     args.nsy = args.nsy or args.ns
     if args.no_subgrid:
         args.subgrid = "none"
-    if len(args.revrot) > 1 and "<omega>" not in args.ofn:
-        raise ValueError("`-o/--ofn` must contain an `<omega>` placeholder when --revrot has more than one value")
+    if len(args.revrot) > 1 and args.split_omega and "<omega>" not in args.ofn:
+        raise ValueError("`-o/--ofn` must contain an `<omega>` placeholder when --split_omega is set with more than one --revrot value")
     if len(args.revrot) > 1 and args.out_score_ary:
         import logging
 

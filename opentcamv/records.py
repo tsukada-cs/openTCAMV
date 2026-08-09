@@ -18,7 +18,10 @@ def record_initpos(ofl: xr.Dataset, args, frames: xr.Dataset, tname: str, yname:
     time_indexer = xr.DataArray(frames[tname][tg].values, dims="it", coords={"it": ofl["it"].values})
     for varname in args.record_initpos:
         interped = frames[varname].interp({tname: time_indexer, yname: ofl["y"], xname: ofl["x"]})
-        ofl[varname].data = interped.transpose(*ofl[varname].dims).values
+        # xarray/scipy interpolation computes (and returns) in float64
+        # regardless of the source's dtype; cast back down to match the
+        # rest of the output schema (ofl[varname] was allocated float32).
+        ofl[varname].data = interped.transpose(*ofl[varname].dims).values.astype(np.float32)
     if args.polar:
         ofl = ofl.drop_vars(["x", "y"])
     return ofl
@@ -61,11 +64,12 @@ def record_alongtraj_and_cth(
     if args.record_alongtraj:
         for varname in args.record_alongtraj:
             interped = frames[varname].interp({tname: times_1d, yname: y_1d, xname: x_1d})
-            ofl[varname].data = interped.data.reshape(out_shape)
+            # see record_initpos's cast for why: interp() returns float64
+            ofl[varname].data = interped.data.reshape(out_shape).astype(np.float32)
 
     if args.out_cthmin or args.out_cthmax:
         interped = frames[args.cth].interp({tname: times_1d, yname: y_1d, xname: x_1d})
-        cth_alongtraj = interped.data.reshape(out_shape)
+        cth_alongtraj = interped.data.reshape(out_shape).astype(np.float32)
         cth_da = xr.DataArray(cth_alongtraj, dims=ofl["xloc"].dims, coords=ofl["xloc"].coords)
         if args.out_cthmin:
             ofl[f"{args.cth}min"] = cth_da.min("it_rel")

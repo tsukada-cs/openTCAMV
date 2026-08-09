@@ -28,12 +28,19 @@ openTCAMV/
 │   ├── cli.py               # argparse definition + normalization
 │   ├── data.py               # input reading, time axis, Grid, mask
 │   ├── params.py             # TrackingSetup (derived parameters)
-│   ├── output.py             # output coords/Dataset/attrs, write
+│   ├── output.py             # output coords/Dataset/attrs, write, combine_omega
 │   ├── rotation.py           # --revrot window rotation
 │   ├── tracking.py           # per-tid0 time-window slicing + pyvttrac.track()
 │   ├── aggregate.py          # --vagg, trajectory concat, polar conversion
 │   ├── screening.py          # revrot restore, --vlim/--Vd/--Td/--Vth
-│   └── records.py            # --record_initpos/--record_alongtraj/--out_cthmin/max/psr
+│   ├── records.py            # --record_initpos/--record_alongtraj/--out_cthmin/max/psr
+│   ├── concat.py             # time-axis concatenation (11_'s logic)
+│   └── finalize/             # candidate selection (20_'s logic)
+│       ├── io.py               # load_candidates: (ns, omega, ...) working dataset
+│       ├── window.py           # median-filter window sizes
+│       ├── masking.py          # cth/IRdiff/score-threshold/striation masking
+│       ├── candidates.py       # priority computation, final assembly
+│       └── selectors/          # iterative_median (default), relaxation (skeleton)
 ├── scripts/                # thin CLI drivers over opentcamv/
 │   ├── 10_conduct_tracking.py
 │   ├── 11_concat_flows_along_time.py
@@ -92,15 +99,19 @@ The x and y dimensions should have "units" attribute with "km".
 #### Usage
 **Basic usage**
 ```bash
-$ python 10_conduct_tracking.py ifn [-s start] [-e end] [-o ofn] [-n ntrac] [--ward ward] [--tidstep tidstep] [--traj_int traj_int] [-v vagg] [--polar] [--use_init_temp] [--no_subgrid] [--subgrid subgrid] [--method method] [--workers workers] [--itran itran] [--xgran xgran] [--xint xint] [--ygran ygran] [--yint yint] [--rgran rgran] [--rint rint] [--nath nath] [--ns ns] [--nsx nsx] [--nsy nsy] [--Vd Vd] [--Td Td] [--Vth Vth] [--Vs Vs] [--hs hs] [--Vc Vc] [--vlim vlim] [--Sth0 Sth0] [--Sth1 Sth1] [--Cth Cth] [--peak_inside_th peak_inside_th] [--itstep itstep] [--varname varname] [--maskvar maskvar] [--mask_lower_lim mask_lower_lim] [--mask_upper_lim mask_upper_lim] [--min_samples min_samples] [--out_subimage] [--out_score_ary] [--out_psr] [--sector sector] [--dtlimit dtlimit] [--ref_dt ref_dt] [--revrot revrot [revrot ...]] [--record_initpos record_initpos] [--record_alongtraj record_alongtraj] [--cth cth] [--out_cthmin] [--out_cthmax] [--complevel complevel]
+$ python 10_conduct_tracking.py ifn [-s start] [-e end] [-o ofn] [-n ntrac] [--ward ward] [--tidstep tidstep] [--traj_int traj_int] [-v vagg] [--polar] [--use_init_temp] [--no_subgrid] [--subgrid subgrid] [--method method] [--workers workers] [--itran itran] [--xgran xgran] [--xint xint] [--ygran ygran] [--yint yint] [--rgran rgran] [--rint rint] [--nath nath] [--ns ns] [--nsx nsx] [--nsy nsy] [--Vd Vd] [--Td Td] [--Vth Vth] [--Vs Vs] [--hs hs] [--Vc Vc] [--vlim vlim] [--Sth0 Sth0] [--Sth1 Sth1] [--Cth Cth] [--peak_inside_th peak_inside_th] [--itstep itstep] [--varname varname] [--maskvar maskvar] [--mask_lower_lim mask_lower_lim] [--mask_upper_lim mask_upper_lim] [--min_samples min_samples] [--out_subimage] [--out_score_ary] [--out_psr] [--sector sector] [--dtlimit dtlimit] [--ref_dt ref_dt] [--revrot revrot [revrot ...]] [--split_omega] [--record_initpos record_initpos] [--record_alongtraj record_alongtraj] [--cth cth] [--out_cthmin] [--out_cthmax] [--complevel complevel]
 ```
 **Example** (single Omega)
 ```bash
 $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.0020 --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 -o=../sample/2017_Lan_ns7_nt1_test.nc --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
 ```
-**Example** (multiple Omega values, looped over within one process; `-o` needs an `<omega>` placeholder)
+**Example** (multiple Omega values, looped over within one process; default output is a single file with an `omega` dimension holding every value)
 ```bash
-$ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 -o='../sample/2017_Lan_ns7_nt1_rot<omega>.nc' --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
+$ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 -o=../sample/2017_Lan_ns7_nt1.nc --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
+```
+**Example** (same, but one file per Omega instead -- `-o` needs an `<omega>` placeholder)
+```bash
+$ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.0000 0.0005 0.0010 0.0015 0.0020 0.0025 --split_omega --varname=B03 --ns=7 --ntrac=1 --Sth0=0.7 -o='../sample/2017_Lan_ns7_nt1_rot<omega>.nc' --ygran=-45:45 --xgran=-45:45 --traj_int=1 --Vs=10 --record_initpos cth B03 B13 B14 --out_cthmax --Vc=20 --Vd=20 --Td=60 --Vth=5
 ```
 
 #### Command line arguments
@@ -109,7 +120,7 @@ $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.000
 | ifn                | str   |          | file path to input NetCDF file                                                                                                                                                                       |                             |
 | -s, --start        | str   |          | start time in yyyymmddTHHMMSS format                                                                                                                                                                 |                             |
 | -e, --end          | str   |          | end time in yyyymmddTHHMMSS format                                                                                                                                                                   |                             |
-| -o, --ofn          | str   | ./tmp.nc | output NetCDF file path                                                                                                                                                                              |                             |
+| -o, --ofn          | str   | ./tmp.nc | output NetCDF file path. Needs a `<omega>` placeholder only when `--split_omega` is set with more than one `--revrot` value                                                                        |                             |
 | -n, --ntrac        | int   | 2        | The number of tracking for both forward and backward tracking                                                                                                                                        |                             |
 | --ward             | str   | bothward | time direction for tracking                                                                                                                                                                          | bothward, forward, backward |
 | --tidstep          | int   | 1        | time index interval of initial time for start tracking (1 means every time index)                                                                                                                    |                             |
@@ -155,7 +166,8 @@ $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.000
 | --sector           | str   |          | limiting sectors used for tracking                                                                                                                                                                   |                             |
 | --dtlimit          | float | 200.0    | specify maximum time interval (in seconds)                                                                                                                                                           |                             |
 | --ref_dt           | float |          | reference time interval for calculating ixhw and iyhw from Vs (in seconds)                                                                                                                           |                             |
-| --revrot           | float | [0.0]    | angular velocity/velocities to rotate images (in rad/s). Positive (negative) value make crockwise (counterclocwise) rotation over time. Accepts multiple values (`nargs="+"`), looped over within one process; `-o` then needs an `<omega>` placeholder |                             |
+| --revrot           | float | [0.0]    | angular velocity/velocities to rotate images (in rad/s). Positive (negative) value make crockwise (counterclocwise) rotation over time. Accepts multiple values (`nargs="+"`), looped over within one process; default output is a single file with all values along an `omega` dimension (see `--split_omega`) |                             |
+| --split_omega      | bool  |          | write one file per `--revrot` value (v1-compatible) instead of the default single combined file; requires a `<omega>` placeholder in `-o`/`--ofn`                                                  |                             |
 | --record_initpos   | str   |          | Record specified variable at their initial position                                                                                                                                                  |                             |
 | --record_alongtraj | str   |          | Record specified variable along their trajectory                                                                                                                                                     |                             |
 | --cth              | str   | cth      | cloud-top height variable name                                                                                                                                                                       |                             |
@@ -168,31 +180,38 @@ $ python 10_conduct_tracking.py ../sample/2017_Lan_aeqd_sample.nc --revrot 0.000
 ### **11_concat_flows_along_time.py**
 <details><summary>Click here to open the description</summary>
 
-If the input files are generated by the script `10_conduct_tracking` with multiprocessing on the time axis, the output files are separated by the time axis. This script concatenates the output files along the time axis to create an input file for `20_finalize_tracking.py`.
+If tracking itself was split across processes/machines by time range
+(memory constraints, cluster distribution -- **not** for speed: `10_
+conduct_tracking.py` already tracks every Omega and `ns` value within a
+single process, so there's no per-Omega parallelism left to reassemble
+here; for within-process speed use `10_`'s `--workers`), this script
+concatenates the resulting `10_conduct_tracking.py` output files along the
+`time` axis into a single input file for `20_finalize_tracking.py`. Works
+unchanged whether or not the inputs carry `10_`'s `omega`/multi-`ns`
+dimensions -- neither is ever the concat axis here.
 
 #### Data requirements
-    Input file: NetCDF files generated by `10_conduct_tracking.py`
+Input file: NetCDF files generated by `10_conduct_tracking.py`
 
 #### Usage
 **Basic usage**
 ```bash
-$ python 11_concat_flows_along_time.py glob_strings [--exclude_texts exclude_texts] [--drop_vars drop_vars] [-o oname]
+$ python 11_concat_flows_along_time.py [-t target [target ...]] [-g glob_strings] [-e exclude_texts [exclude_texts ...]] [-d drop_vars [drop_vars ...]] [-o oname]
 ```
 **Example**
 ```bash
-$ python 11_concat_flows_along_time.py ../sample/2017_Lan_ns7_nt1_rot0.0007_it*.nc --exclude_texts concat -o ../sample/2017_Lan_ns7_nt1_concat.nc
+$ python 11_concat_flows_along_time.py -g '../sample/2017_Lan_ns7_nt1_it*.nc' --exclude_texts concat -o ../sample/2017_Lan_ns7_nt1_concat.nc
 ```
 
-
 #### Command line arguments
-| Argument        | Type | Default | Description                                                | Choices |
-| --------------- | ---- | ------- | ---------------------------------------------------------- | ------- |
-| glob_strings    | str  |         | File pattern to match netCDF files                         |         |
-| --exclude_texts | str  |         | Exclude the filenames including this text from concat list |         |
-| --drop_vars     | str  |         | Variable names included in the output file                 |         |
-| -o, --oname     | str  |         | Output filename                                            |         |
+| Argument              | Type | Default | Description                                                          | Choices |
+| ---------------------- | ---- | ------- | --------------------------------------------------------------------- | ------- |
+| -t, --target           | str  |         | NetCDF filenames to concatenate (alternative to `-g`)                 |         |
+| -g, --glob_strings     | str  |         | File pattern to match netCDF files (alternative to `-t`)              |         |
+| -e, --exclude_texts    | str  |         | Exclude the filenames including this text from the concat list        |         |
+| -d, --drop_vars        | str  |         | Variable names to drop from the output file                           |         |
+| -o, --oname            | str  |         | Output filename. Derived from `--glob_strings` if omitted             |         |
 
-"""
 </details>
 <hr>
 

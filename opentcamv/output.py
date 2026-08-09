@@ -182,8 +182,8 @@ def build_empty_dataset(args, frames: xr.Dataset, tname: str, coords: dict, tg: 
         },
         coords=coords,
     )
-    ofl[names.v1].attrs.update({"long_name": f"{dim1}-axis velocity", "units": "m/s"})
-    ofl[names.v2].attrs.update({"long_name": f"{dim2}-axis velocity", "units": "m/s"})
+    ofl[names.v1].attrs.update({"long_name": f"{dim1}-axis velocity", "units": "m s-1"})
+    ofl[names.v2].attrs.update({"long_name": f"{dim2}-axis velocity", "units": "m s-1"})
     ofl[names.loc1].attrs.update({"long_name": f"{dim1} location", "units": ax1.units})
     ofl[names.loc2].attrs.update({"long_name": f"{dim2} location", "units": ax2.units})
     ofl["score"] = (
@@ -195,11 +195,11 @@ def build_empty_dataset(args, frames: xr.Dataset, tname: str, coords: dict, tg: 
     encoding = {key: {"_FillValue": FMISS} for key in ofl.data_vars.keys()}
 
     if forward:
-        ofl = ofl.assign({"stf": (["it", dim1, dim2], np.full([tg.size, ax1.size, ax2.size], -10, dtype=np.int16))})
+        ofl = ofl.assign({"stf": (["it", dim1, dim2], np.full([tg.size, ax1.size, ax2.size], -10, dtype=np.int8))})
         ofl["stf"].attrs.update(_status_attrs("forward tracking status"))
         encoding.update({"stf": {"_FillValue": -10}})
     if backward:
-        ofl = ofl.assign({"stb": (["it", dim1, dim2], np.full([tg.size, ax1.size, ax2.size], -10, dtype=np.int16))})
+        ofl = ofl.assign({"stb": (["it", dim1, dim2], np.full([tg.size, ax1.size, ax2.size], -10, dtype=np.int8))})
         ofl["stb"].attrs.update(_status_attrs("backward tracking status"))
         encoding.update({"stb": {"_FillValue": -10}})
 
@@ -277,6 +277,52 @@ def scalarize_attrs(ofl: xr.Dataset) -> None:
             ofl.attrs[key] = [value.start, value.stop]
         elif isinstance(value, bool):
             ofl.attrs[key] = int(value)
+
+
+def combine_omega(ofls: "dict[float, xr.Dataset]", record_initpos: "list[str] | None" = None) -> xr.Dataset:
+    """Combines one fully-processed (post screening/records/attrs) Dataset
+    per Omega into a single Dataset with a new `omega` dimension/coordinate,
+    in `ofls`'s iteration order (the caller is responsible for that being
+    `args.revrot`'s order -- Python dicts preserve insertion order, and
+    `10_conduct_tracking.py` builds `ofls` by iterating `args.revrot`).
+
+    Existing variable/dim names and attrs keys are unchanged; `omega` is
+    additive only for variables that actually vary with Omega. `time2` (the
+    per-`it_rel` frame timestamps -- real satellite acquisition times,
+    unaffected by `--revrot`) and `--record_initpos` outputs (values at the
+    *initial*, pre-tracking seed position, likewise independent of the
+    rotation applied *during* tracking) are taken once from the first
+    Omega instead of duplicated `n_omega` times over: `--record_initpos`
+    commonly includes full-resolution imagery (`B03`/`B13`/`B14`), where
+    that duplication is not small. `record_initpos` must be `args.
+    record_initpos` for this to be exact -- passing `None` (or omitting it)
+    only misses this optimization for those variables, `time2` is always
+    deduplicated. `cthmax`/`cthmin`/`--record_alongtraj` outputs *do* vary
+    with Omega (trajectory-derived) and are concatenated normally.
+
+    Top-level attrs are taken from the first Omega's Dataset (`xr.concat`'s
+    default `combine_attrs="override"`), since most attrs keys
+    (`dtmean`/`xint`/`yint`/`polar`, the schema `20_finalize_tracking.py`
+    reads) don't vary across Omega. The exceptions -- `revrot` (each input
+    Dataset has it as *that* Omega's own scalar, from `build_attrs`),
+    `chk_zmiss` (depends on `omega != 0.0`, see `TrackingSetup.to_attrs`),
+    and the `exec`/`history` provenance strings (embed that scalar `revrot`)
+    -- are left as the first Omega's values except `revrot`, which is
+    overridden to the full list: it now describes the whole file, not one
+    slice of it.
+    """
+    omegas = list(ofls.keys())
+    first = next(iter(ofls.values()))
+    omega_independent = {"time2", *(record_initpos or [])} & set(first.data_vars)
+    omega_dependent = [var for var in first.data_vars if var not in omega_independent]
+
+    combined = xr.concat(
+        [ofl[omega_dependent] for ofl in ofls.values()], dim=pd.Index(omegas, name="omega")
+    )
+    for var in omega_independent:
+        combined[var] = first[var]
+    combined.attrs["revrot"] = omegas
+    return combined
 
 
 def write(ofl: xr.Dataset, encoding: dict, path: str, complevel: int) -> None:
