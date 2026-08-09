@@ -42,9 +42,15 @@ installable package:
   Julia and the `pyVTTrac` git submodule are no longer dependencies —
   `pip install pyVTTrac` is sufficient.
 
-See pyVTTrac's own `CHANGELOG.md` (2.1.0) for the API-level changes that
-made this migration possible, including a `Grid` sign-handling fix that
-affects any workflow using a descending coordinate axis.
+Requires **pyVTTrac >= 2.2**. See pyVTTrac's own `CHANGELOG.md` (2.1.0 and
+2.2.0) for the API-level changes that made this migration possible,
+including a `Grid` sign-handling fix that affects any workflow using a
+descending coordinate axis, an out-of-bounds template read at the low edge
+of the domain that could silently corrupt affected templates, and a fix for
+`workers` leaking process-wide OpenMP state between calls. The out-of-bounds
+fix does not change this repository's sample output (its seeds sit far from
+the domain edge; verified bit-identical), but it can change results for
+runs that place templates within a few pixels of the `x`/`y` minimum.
 
 ### Fixed
 
@@ -78,6 +84,12 @@ option; see "Numerical differences from v1" below.
 7. Removed dead padding code in the `--out_score_ary` path (the padding
    amount was always zero, since the search radius is now fixed once per
    run rather than potentially varying).
+8. **`vxhw`/`vyhw` output attributes were wrong under `--hs`**: `--hs` sets
+   the pixel search radius directly and `--Vs` is never consulted, but the
+   attributes still reported `--Vs`. They now report the search velocity
+   the radius actually covers (via pyVTTrac's
+   `velocity_from_search_radius()`). Metadata only — no effect on the
+   derived vectors, and no change when `--hs` is not used.
 
 ### Numerical differences from v1
 

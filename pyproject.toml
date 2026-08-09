@@ -18,7 +18,7 @@ dependencies = [
     "dask",
     "pillow",
     "netcdf4",
-    "pyVTTrac>=2.1",
+    "pyVTTrac>=2.2",
 ]
 
 [project.optional-dependencies]

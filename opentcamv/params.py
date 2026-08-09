@@ -45,7 +45,11 @@ class TrackingSetup:
     nt: int
     ny: int
     nx: int
-    search_velocity: float  # args.Vs, kept for attrs even when --hs overrides search_radius
+    # (vyhw, vxhw) effective search velocity, for attrs only. `--Vs` as given
+    # when the radius was derived from it; when `--hs` set the radius
+    # directly, the equivalent velocity that radius covers (rather than the
+    # ignored `--Vs`, which v1 and earlier v2 both misreported here).
+    search_velocity: "tuple[float, float]"
 
     @classmethod
     def from_args(cls, args, frames: xr.Dataset, varname: str) -> "TrackingSetup":
@@ -63,6 +67,15 @@ class TrackingSetup:
         nx = frames[xname].size
 
         subgrid = None if args.subgrid == "none" else args.subgrid
+
+        if args.hs:
+            # --hs sets the pixel radius directly and --Vs is never consulted,
+            # so report the velocity that radius actually covers.
+            search_velocity = pyvttrac.velocity_from_search_radius(
+                search_radius, dt=ref_dt * args.itstep, grid=grid
+            )
+        else:
+            search_velocity = (args.Vs, args.Vs)
 
         return cls(
             grid=grid,
@@ -86,7 +99,7 @@ class TrackingSetup:
             nt=nt,
             ny=ny,
             nx=nx,
-            search_velocity=args.Vs,
+            search_velocity=search_velocity,
         )
 
     def make_tracker(self) -> "pyvttrac.Tracker":
@@ -112,6 +125,7 @@ class TrackingSetup:
         `dtmean`/`xint`/`yint`/`polar` out of this via the output dataset)."""
         nsy, nsx = self.template
         iyhw, ixhw = self.search_radius
+        vyhw, vxhw = self.search_velocity
         Sth0, Sth1 = self.min_score
         vych, vxch = self.max_velocity_change
         fmiss = np.finfo(np.float32).max
@@ -120,7 +134,7 @@ class TrackingSetup:
             "nt": self.nt, "ny": self.ny, "nx": self.nx,
             "dtmean": self.dtmean,
             "nsx": nsx, "nsy": nsy,
-            "vxhw": self.search_velocity, "vyhw": self.search_velocity, "ixhw": ixhw, "iyhw": iyhw,
+            "vxhw": vxhw, "vyhw": vyhw, "ixhw": ixhw, "iyhw": iyhw,
             "subgrid": self.subgrid is not None, "subgrid_gaus": self.subgrid == "gaussian",
             "itstep": self.itstep, "ntrac": self.nsteps,
             "score_method": self.method, "Sth0": Sth0, "Sth1": Sth1,

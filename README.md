@@ -57,7 +57,7 @@ openTCAMV/
 * dask
 * pillow
 * netcdf4
-* pyVTTrac >= 2.1
+* pyVTTrac >= 2.2
 * matplotlib (only for `30_plot_velocity2d.py`)
 
 Target platforms are Linux and macOS (pyVTTrac v2's native Fortran core doesn't support Windows).

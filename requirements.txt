@@ -6,4 +6,4 @@ xarray
 dask
 netcdf4
 matplotlib
-pyVTTrac>=2.1
+pyVTTrac>=2.2

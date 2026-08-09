@@ -104,8 +104,19 @@ def build_grid(frames: xr.Dataset, varname: str, xname: str, yname: str) -> "pyv
     dy = float(((ycoord[-1] - ycoord[0]) / (ycoord.size - 1)).item())
     y0 = float(ycoord[0].item())
 
-    unit_factor = 1e3 if xcoord.attrs.get("units") == "km" else 1.0
-    return pyvttrac.Grid(x0=x0, y0=y0, dx=dx, dy=dy, unit_factor=unit_factor)
+    x_units = xcoord.attrs.get("units")
+    y_units = ycoord.attrs.get("units")
+    if x_units == "km":
+        # unit_factor converts the km-per-index spacing to m, so velocities
+        # come back in m/s (`t` is in seconds).
+        unit_factor, velocity_units = 1e3, "m s-1"
+    else:
+        unit_factor = 1.0
+        velocity_units = f"{x_units} s-1" if x_units else None
+    return pyvttrac.Grid(
+        x0=x0, y0=y0, dx=dx, dy=dy, unit_factor=unit_factor,
+        x_units=x_units, y_units=y_units, velocity_units=velocity_units,
+    )
 
 
 def build_mask(args, frames: xr.Dataset) -> "np.ndarray | None":
