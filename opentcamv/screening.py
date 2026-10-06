@@ -96,7 +96,7 @@ def screen(ofl: xr.Dataset, args, names: AxisNames) -> xr.Dataset:
             dot_product = ofl["vxfm"] * ofl["vxbm"] + ofl["vyfm"] * ofl["vybm"]
             vabsf = np.hypot(ofl["vxfm"], ofl["vyfm"])
             vabsb = np.hypot(ofl["vxbm"], ofl["vybm"])
-            angle_diff = np.arccos(dot_product / vabsf / vabsb)
+            angle_diff = np.arccos(np.clip(dot_product / vabsf / vabsb, -1.0, 1.0))
             if args.Vth > 0:
                 valid = valid & ~((angle_diff > np.deg2rad(args.Td)) & ((vabsf >= args.Vth) | (vabsb >= args.Vth)))
             else:

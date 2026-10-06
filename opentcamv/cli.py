@@ -1,13 +1,14 @@
 """Argument parser for `10_conduct_tracking.py`, plus post-parse normalization.
 
-The parser is a straight port of v1's, plus: `--revrot` becomes `nargs="+"`
-(looped over in a single process instead of one process per Omega), and
-`--workers` / `--subgrid` / `--method` are new.
+The parser is a straight port of v1's, plus: `--revrot` and `--ns` become
+`nargs="+"` (looped over in a single process instead of one process per
+Omega/`ns`), and `--workers` / `--subgrid` / `--method` are new.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 
 
 def _parse_slice(s):
@@ -20,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("ifn", type=str, help="file path to input NetCDF file")
     parser.add_argument("-s", "--start", type=str, help="start time in yyyymmddTHHMMSS format")
     parser.add_argument("-e", "--end", type=str, help="end time in yyyymmddTHHMMSS format")
-    parser.add_argument("-o", "--ofn", default="./tmp.nc", type=str, help="output NetCDF file path. Must contain a `<omega>` placeholder when --split_omega is set with more than one --revrot value")
+    parser.add_argument("-o", "--ofn", default="./tmp.nc", type=str, help="output NetCDF file path. Must contain a `<ns>` placeholder when more than one --ns value is given, and a `<omega>` placeholder when --split_omega is set with more than one --revrot value")
     parser.add_argument("-n", "--ntrac", default=2, type=int, help="The number of tracking for both forward and backward tracking")
     parser.add_argument("--ward", type=str, default="bothward", choices=["bothward", "forward", "backward"], help="time direction for tracking")
     parser.add_argument("--tidstep", default=1, type=int, help="time index interval of initial time for start tracking (1 means every time index)")
@@ -40,9 +41,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rgran", default=slice(4, 50), type=_parse_slice, help="r-axis colon-separated slice of initial template positions (equally spaced grid)")
     parser.add_argument("--rint", default=1.0, type=int, help="r-axis interval of initial template positions (equally spaced grid)")
     parser.add_argument("--nath", default=60, type=int, help="number of azimuthal initial template positions in polar coordinates")
-    parser.add_argument("--ns", default=11, type=int, help="template size in pixel dimension")
-    parser.add_argument("--nsx", type=int, help="template width with higher priority over --ns")
-    parser.add_argument("--nsy", type=int, help="template height with higher priority over --ns")
+    parser.add_argument("--ns", default=[11], type=int, nargs="+", help="template size(s) in pixel dimension. Multiple values are looped over within a single process, one at a time, each writing its own output file(s) (see -o)")
+    parser.add_argument("--nsx", type=int, help="template width with higher priority over --ns (single --ns value only)")
+    parser.add_argument("--nsy", type=int, help="template height with higher priority over --ns (single --ns value only)")
     parser.add_argument("--Vd", default=20.0, type=float, help="threshold to limit the maximum velocity difference between velocities obtained from forward and backward tracking as vectors (available if --ward='bothward' and --vagg='vmean' or 'startend')")
     parser.add_argument("--Td", type=float, help="threshold to limit the maximum angle difference between velocities obtained from forward and backward tracking as vectors (available if --ward='bothward' and --vagg='vmean' or 'startend')")
     parser.add_argument("--Vth", type=float, default=5.0, help="threshold speed for screening with --Td")
@@ -78,9 +79,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def normalize_args(args: argparse.Namespace) -> argparse.Namespace:
-    """Post-parse normalization shared by all entry points (script + tests)."""
-    args.nsx = args.nsx or args.ns
-    args.nsy = args.nsy or args.ns
+    """Post-parse normalization shared by all entry points (script + tests).
+    `args.ns` stays a list here; `args_for_ns()` narrows it to one value."""
+    if len(set(args.ns)) != len(args.ns):
+        raise ValueError(f"`--ns` values must be unique (each one writes its own output file): {args.ns}")
+    if len(args.ns) > 1 and "<ns>" not in args.ofn:
+        raise ValueError("`-o/--ofn` must contain an `<ns>` placeholder when more than one --ns value is given")
+    if len(args.ns) > 1 and (args.nsx or args.nsy):
+        raise ValueError("`--nsx`/`--nsy` can't be combined with more than one --ns value")
     if args.no_subgrid:
         args.subgrid = "none"
     if len(args.revrot) > 1 and args.split_omega and "<omega>" not in args.ofn:
@@ -94,3 +100,18 @@ def normalize_args(args: argparse.Namespace) -> argparse.Namespace:
             "Omega per process (as in v1) if you hit memory limits."
         )
     return args
+
+
+def args_for_ns(args: argparse.Namespace, ns: int) -> argparse.Namespace:
+    """Shallow copy of `args` narrowed to the single template size `ns`:
+    `ns`/`nsx`/`nsy` become scalars and `<ns>` in `ofn` is filled in with
+    `str(ns)` (what `20_finalize_tracking.py` substitutes), so everything
+    downstream -- `TrackingSetup`, the attrs dump, the output path -- sees
+    exactly what a single-`ns` run would. Later in-place mutations (e.g.
+    `compute_ref_dt` setting `ref_dt`) land on the copy, not on `args`."""
+    args_ns = copy.copy(args)
+    args_ns.ns = ns
+    args_ns.nsx = args.nsx or ns
+    args_ns.nsy = args.nsy or ns
+    args_ns.ofn = args.ofn.replace("<ns>", str(ns))
+    return args_ns

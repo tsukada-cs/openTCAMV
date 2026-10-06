@@ -1,5 +1,57 @@
 # Changelog
 
+## 2.1.0
+
+### Added
+
+- **`10_conduct_tracking.py --ns` accepts multiple values** (`--ns 7 9
+  11`), like `--revrot`. Each `ns` writes its own output file(s) -- `-o`
+  must contain an `<ns>` placeholder (filled with `str(ns)`, as `20_
+  finalize_tracking.py` expects) -- in the same per-Omega layout a
+  single-`ns` run writes, so `20_`'s `<ns>`-only input format reads them
+  unchanged. The `ns` values run one after another: each one's buffers are
+  written and freed before the next starts, so peak memory stays that of a
+  single-`ns` run (n_omega buffers), not n_ns x n_omega. `--nsx`/`--nsy`
+  are rejected with more than one `--ns` value. `cli.normalize_args()` no
+  longer fills `args.nsx`/`args.nsy`; the new `cli.args_for_ns()` does,
+  on a per-`ns` copy of `args`.
+
+### Fixed
+
+1. **`rotation.rotate_window()` never rotated `mask`.**
+   `10_conduct_tracking.py` rotated `z` but passed the un-rotated `mask_win`
+   into `tracking.track_at()`, so scoring rejected pixels by where they used
+   to be, not where the rotated data put them.
+2. **`rotate_window()` silently corrupted float64 input.**
+   `Image.fromarray(arr, mode="F")` reinterprets a float64 buffer's raw
+   bytes as float32 rather than converting it, returning garbage with no
+   error. The only caller happened to pre-cast to float32, so this was
+   latent.
+3. **`screening.screen()`'s `--Td` angle computation could return NaN and
+   silently pass the screen.** `np.arccos(dot_product / vabsf / vabsb)`
+   overshoots the valid `[-1, 1]` domain by a float ulp for two
+   near-parallel vectors; the resulting NaN failed every comparison against
+   it, including the rejection check, so the point was kept rather than
+   correctly treated as a 0-degree difference. Now clipped before
+   `arccos`.
+
+### Changed
+
+- **Rotation backend: `PIL.Image.rotate(resample=BICUBIC)` ->
+  `scipy.ndimage` cubic B-spline.** PIL's "bicubic" is a smoothing
+  cubic-convolution kernel, not an interpolating spline: rotating a
+  band-limited field by 7.3 deg and back leaves an RMS error of 0.24 (on a
+  field of peak-to-peak 60), about the same as bilinear, against 0.0003 for
+  the spline -- and that smoothing lands on exactly the high-frequency
+  texture template matching scores on, applied to every frame but the
+  reference one. `rotation.py` now exposes `spline_coefficients()` /
+  `rotation_coordinates()` / `rotate_frame()` as separate steps so a caller
+  can hoist the (rotation-independent) prefilter out of a loop over many
+  angles -- `rotate_window()` itself is unchanged in signature and
+  behavior otherwise. This changes `--revrot`'s numerical output versus
+  the PIL-based 2.0.0: expect a closer match to genuine rigid rotation,
+  most visible at large `|omega|` where PIL's blur previously accumulated.
+
 ## 2.0.0
 
 ### Candidate-selection layer redesign
