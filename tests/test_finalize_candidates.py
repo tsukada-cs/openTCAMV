@@ -96,13 +96,8 @@ def _write_two_ns_candidates(tmp_path):
 
 def test_multi_ns_completes_without_error(tmp_path):
     """F1: `--ns 7 9` used to raise `ValueError: conflicting sizes for
-    dimension 'omega'`.
-
-    NOTE: doesn't check `--out_final_ns`'s output -- that flag doesn't
-    actually output anything (F13, pre-existing, not introduced by this
-    port: `final_ns` is assigned onto an intermediate Dataset but never
-    copied into the returned one). This test only exercises loading +
-    selection completing successfully."""
+    dimension 'omega'`. Only exercises loading + selection completing
+    successfully; `--out_final_ns` is checked by the rescue test below."""
     ifns_rule, omega_strs, omegas, paths = make_finalize_candidates(tmp_path, n_omega=2, ns=7, fname_prefix="a")
     # A second ns, reusing the same synthetic field/omegas (different seed
     # so it's not a byte-identical duplicate).
@@ -125,7 +120,7 @@ def test_larger_ns_rescues_point_invalid_at_smaller_ns(tmp_path):
     argv = [
         sys.executable, str(SCRIPT), ifns_rule, "--ns", "7", "9", "--omega", *omega_strs,
         "--cthmax", "10", "--score_th", "0.5", "--exclude", "stf", "stb", "score_ary", "psr",
-        "-o", str(out),
+        "--out_final_ns", "-o", str(out),
     ]
     result = subprocess.run(argv, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -144,3 +139,12 @@ def test_larger_ns_rescues_point_invalid_at_smaller_ns(tmp_path):
     # but the velocity should still recover the true field.
     np.testing.assert_allclose(ds["vx"].isel(it=0, y=1, x=1).item(), 6.0, atol=0.5)
     np.testing.assert_allclose(ds["vy"].isel(it=0, y=1, x=1).item(), -3.0, atol=0.5)
+
+    # F13: `--out_final_ns` reaches the output, and records the rescue: ns=9
+    # at (0,0), the smallest valid ns (7) wherever both are valid.
+    final_ns = ds["final_ns"].values
+    assert ds["final_ns"].dims == ("it", "y", "x")
+    assert (final_ns[:, 0, 0] == 9).all()
+    rest = np.ones((ds.sizes["y"], ds.sizes["x"]), bool)
+    rest[0, 0] = False
+    assert (final_ns[:, rest] == 7).all()

@@ -63,7 +63,13 @@ def test_matches_golden_main(tmp_path):
         tmp_path,
         ["--cthmax", "10", "--exclude", "stf", "stb", "score_ary", "psr", "--out_final_omega", "--out_final_ns"],
     )
-    _assert_matches_golden(ds, "main")
+    # F13: the pre-refactor script silently dropped `final_ns`, so the golden
+    # has none. With the single ns=7 it must be 7 wherever a solution exists.
+    valid = np.isfinite(ds["vx"].values)
+    final_ns = ds["final_ns"].values
+    assert (final_ns[valid] == 7).all()
+    assert np.isnan(final_ns[~valid]).all()
+    _assert_matches_golden(ds.drop_vars("final_ns"), "main")
 
 
 def test_matches_golden_dangv_priority(tmp_path):

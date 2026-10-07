@@ -69,6 +69,12 @@ def assemble_final(
     own value. `candidate_independent_keepvars` (e.g. `--record_initpos`
     outputs) don't vary by candidate, so they're attached directly from
     `flows_ns_min` with no `.sel`.
+
+    F13 (fixed): `--out_final_ns` assigned `final_ns` onto `flows_ns_min`,
+    which the `per_candidate_vars` subset below then dropped, so it never
+    reached the output (pre-existing in the original script). It's now
+    picked at each point's winning omega, like the other per-candidate
+    variables, and masked where no candidate survived.
     """
     valid_ns_mins = ns_selection["valid_ns_mins"]
     ns_min = ns_selection["ns_min"]
@@ -77,8 +83,6 @@ def assemble_final(
         flows_ns_min = flows_org.squeeze()
     else:
         flows_ns_min = flows_org.sel(ns=valid_ns_mins.fillna(ns_min))
-    if out_final_ns:
-        flows_ns_min["final_ns"] = valid_ns_mins
 
     corresponding_omega_is_zero = np.abs(flows_ns_min[priority_key] - final_score)
     final_omega = corresponding_omega_is_zero.fillna(np.inf).idxmin("omega")
@@ -88,5 +92,7 @@ def assemble_final(
         final_flows[keepvar] = flows_ns_min[keepvar]
     if out_final_omega:
         final_flows["final_omega"] = final_omega
+    if out_final_ns:
+        final_flows["final_ns"] = valid_ns_mins.sel(omega=final_omega).where(valid_omega).compute()
 
     return final_flows

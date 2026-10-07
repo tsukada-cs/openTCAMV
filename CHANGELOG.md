@@ -34,6 +34,13 @@
    it, including the rejection check, so the point was kept rather than
    correctly treated as a 0-degree difference. Now clipped before
    `arccos`.
+4. **`20_finalize_tracking.py --out_final_ns` never wrote `final_ns`**
+   (F13, inherited from the original script). It was assigned onto an
+   intermediate Dataset that the per-candidate variable subset then
+   dropped. Now written as the `ns` actually used at each point's winning
+   Omega, NaN where no candidate survived -- the variable to check which
+   `ns` the selector picked when run on multi-`--ns` output. The `main`
+   golden regression scenario predates it and is compared without it.
 
 ### Changed
 
