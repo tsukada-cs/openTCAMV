@@ -7,6 +7,10 @@ Importing this package eagerly imports all public submodules, so a single
 
     ds = opentcamv.data.load(...)
     parser = opentcamv.cli.build_parser()
+
+The exception is `trajectory_movie`, which needs the optional matplotlib:
+import it explicitly (``from opentcamv.trajectory_movie import
+animate_trajectories``).
 """
 
 from . import (

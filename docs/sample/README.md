@@ -160,6 +160,17 @@ From these steps, you can obtain the 2D velocity field of the sample data as sho
 ![](./AMVs_it24.png)
 *Wind distribution in the eye of Typhoon Lan (2017) at 2017-10-21 03:02:19 UTC. Wind vectors are represented by arrows, with color indicating wind speed (m/s). These vectors are overlaid on the visible image. Additionally, black contours depict cloud top height, spaced at 2 km intervals starting from 2 km.*
 
+## 4: Animate the tracked parcels
+`openTCAMV/scripts/31_animate_trajectories.py` shows how each AMV came about: every template moves along its trajectory over the images it was tracked in, leaving a trail that thins with age. A cycle shows the AMVs centered on one image (3 images with `--ntrac=1`), then one image alone, then the next cycle, so every image appears once.
+```bash
+$ python ../scripts/31_animate_trajectories.py 2017_Lan_ns7_nt1.nc --log --contrast 0.5 --zoom 0 0 15 --titles "Inner core" "Eye" --rings 10 20
+```
+The image file is found through the `ifn` attribute that `10_conduct_tracking.py` recorded (`2017_Lan_aeqd_sample.nc`); pass `--image` if it has moved. `--log --contrast 0.5` shows the log reflectance with half of its 8 km local mean removed, which brings out the cloud texture the templates follow, and `--zoom 0 0 15` adds a 30 km x 30 km panel on the eye. The movie is written to `./outputs/2017_Lan_ns7_nt1_trajectories.mp4` (this needs ffmpeg; `-o 2017_Lan_ns7_nt1_trajectories.gif` writes a GIF instead). Add `--corotate 0.0015` to draw each cycle in a frame rotating with the eye at 1.5e-3 rad/s, or `--color speed` to color the parcels by their speed. For other options, see the help message of the script by running `python ../scripts/31_animate_trajectories.py -h`; to use the animation function in your own code without installing openTCAMV, see "Using `trajectory_movie.py` in your own code" in the top-level README.
+
+The first two cycles of the movie (as a GIF, at reduced resolution):
+![](./trajectories.gif)
+*Tracked parcels of the AMVs of Typhoon Lan (2017), 2017-10-21 01:59:48-02:17:13 UTC (8 images): (a) the tracking domain, (b) the eye. Dots: template positions in the image shown; trails: their earlier positions along the trajectory, thinning with age. The red box in (a) is the area of (b); dashed circles are 10 and 20 km from the center.*
+
 ## References
 * Horinouchi, T., Tsujino, S., Hayashi, M., Shimada, U., Yanase, W., Wada, A., & Yamada, H. (2023). Stationary and Transient Asymmetric Features in Tropical Cyclone Eye with Wavenumber-1 Instability: Case Study for Typhoon Haishen (2020) with Atmospheric Motion Vectors from 30-Second Imaging. Monthly Weather Review, 151(1), 253–273. https://doi.org/10.1175/MWR-D-22-0179.1
 * Tsukada, T., Horinouchi, T., & Tsujino, S. (2024). Wind distribution in the eye of tropical cyclone revealed by a novel atmospheric motion vector derivation. Journal of Geophysical Research: Atmospheres, 129, e2023JD040585. https://doi.org/10.1029/2023JD040585

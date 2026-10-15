@@ -15,6 +15,16 @@
   are rejected with more than one `--ns` value. `cli.normalize_args()` no
   longer fills `args.nsx`/`args.nsy`; the new `cli.args_for_ns()` does,
   on a per-`ns` copy of `args`.
+- **Trajectory animation** (`opentcamv/trajectory_movie.py`; CLI
+  `scripts/31_animate_trajectories.py`): animates the tracked parcels behind
+  the AMVs over the images they were tracked in. Each AMV time plays as a
+  cycle through the images of its trajectories, every image appears once,
+  and the trails thin smoothly with age. Options: zoom panels, thinning
+  (stride/checkerboard), coloring by speed or any value, and a display frame
+  co-rotating with the vortex (`--corotate`). The module imports nothing from
+  openTCAMV (numpy + matplotlib only; scipy for its `local_contrast` helper),
+  so the file can be copied into other projects and fed any tracker's
+  trajectories; `match_frames` maps trajectory step times onto image indices.
 
 ### Fixed
 

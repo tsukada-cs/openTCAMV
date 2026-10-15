@@ -24,3 +24,8 @@ python ../scripts/20_finalize_tracking.py 2017_Lan_ns7_nt1_candidates.nc --ns=7 
 # 3. Plot AMVs at a specific time
 python ../scripts/30_plot_velocity2d.py 2017_Lan_ns7_nt1.nc --it=24
 ## ==> see ./outputs/AMVs_it24.png
+
+# 4. Animate the tracked parcels over the images (.mp4 needs ffmpeg; -o name.gif does not)
+python ../scripts/31_animate_trajectories.py 2017_Lan_ns7_nt1.nc --log --contrast 0.5 \
+    --zoom 0 0 15 --titles "Inner core" "Eye" --rings 10 20
+## ==> see ./outputs/2017_Lan_ns7_nt1_trajectories.mp4
