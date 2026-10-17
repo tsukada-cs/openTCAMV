@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 import xarray as xr
 from matplotlib.collections import LineCollection, PathCollection
+from matplotlib.colors import Normalize, same_color
 from PIL import Image
 
 from conftest import SCRIPTS_DIR, make_uniform_advection_frames, run_tracking
@@ -165,6 +166,66 @@ def test_user_axes_and_gif(tmp_path):
     plt.close("all")
 
 
+def test_raw_image_shares_one_scale_unless_a_panel_has_its_own():
+    """standardize=False shows the values themselves: on one scale for every panel (the first image's range over the
+    first panel) with one colorbar, or, for a panel with its own `vlim`, on that scale with a colorbar of its own."""
+    times, fi, xloc, yloc = moving_parcels(nt=5, ntrac=1, dt=60.0, u=20.0)
+    images = np.full((5, 41, 41), 250.0)
+    images[:, 20, 20], images[:, 21, 21] = 240.0, 260.0           # the extremes inside the main panel
+    images[:, 0, 0], images[:, -1, -1] = 100.0, 400.0             # outside it: ignored
+    main, zoom = dict(xlim=(-10, 10), ylim=(-10, 10)), dict(center=(0, 0), half=5)
+
+    movie = animate_trajectories(images, X, Y, xloc, yloc, fi, times=times, panels=[main, zoom], standardize=False,
+                                 image_label="BT (K)")
+    shown = [ax.images[0] for ax in movie.axes]
+    assert [im.get_clim() for im in shown] == [(240.0, 260.0)] * 2
+    assert shown[0].get_array().max() == 260.0                     # the values themselves, not standardized
+    assert shown[0].colorbar.ax.get_xlabel() == "BT (K)" and shown[1].colorbar is None
+    assert len(movie.fig.axes) == 3
+
+    movie = animate_trajectories(images, X, Y, xloc, yloc, fi, times=times, panels=[main, dict(zoom, vlim=(245, 255))],
+                                 standardize=False, image_label="BT (K)")
+    shown = [ax.images[0] for ax in movie.axes]
+    assert [im.get_clim() for im in shown] == [(240.0, 260.0), (245.0, 255.0)]
+    assert all(im.colorbar.ax.get_xlabel() == "BT (K)" for im in shown)
+    assert len(movie.fig.axes) == 4
+    plt.close("all")
+
+
+def test_frame_label_stays_put_and_fits():
+    """The frame label starts in one place on every frame, cycle or image only, and a label too long for the figure is
+    shrunk to fit it."""
+    times, fi, xloc, yloc = moving_parcels(nt=9, ntrac=1, dt=60.0, u=20.0)
+    movie = animate_trajectories(np.zeros((9, 41, 41)), X, Y, xloc, yloc, fi, times=times, title="A long title " * 6)
+    renderer = movie.fig.canvas.get_renderer()
+    boxes = [movie.draw(i)[-1].get_window_extent(renderer) for i in range(len(movie.schedule))]
+    assert {j is None for _, j, _ in movie.schedule} == {True, False}
+    assert np.ptp([b.x0 for b in boxes]) < 1e-6
+    assert min(b.x0 for b in boxes) >= 0 and max(b.x1 for b in boxes) <= movie.fig.bbox.width
+    plt.close("all")
+
+
+def test_head_color_from_the_image_where_the_parcel_starts():
+    """head_color="image" fills every parcel, all through its cycle, with the image color under its first position; the
+    trails keep `color`."""
+    times, fi, xloc, yloc = moving_parcels(nt=5, ntrac=1, dt=60.0, u=20.0)
+    images = np.broadcast_to(X, (5, 41, 41)).copy()               # the value is x (km), one pixel per km
+    movie = animate_trajectories(images, X, Y, xloc, yloc, fi, times=times, standardize=False, vlim=(-20, 20),
+                                 image_cmap="viridis", head_color="image", color="yellow")
+    heads, lines = artists(movie.axes[0])
+    checked = 0
+    for i, (_, j, s) in enumerate(movie.schedule):
+        movie.draw(i)
+        if j is None:
+            continue
+        expected = plt.get_cmap("viridis")(Normalize(-20, 20)(np.rint(xloc[j, 0].ravel())))
+        np.testing.assert_allclose(heads.get_facecolors(), expected)
+        assert s == 0 or same_color(lines.get_colors()[0], "yellow")
+        checked += 1
+    assert checked == 3
+    plt.close("all")
+
+
 @pytest.mark.parametrize("seeds", [["--xgran=-6:6", "--ygran=-6:6", "--xint", "2", "--yint", "2"],
                                    ["--polar", "--rgran", "2:6", "--rint", "2", "--nath", "12"]], ids=["cartesian", "polar"])
 def test_cli_end_to_end(tmp_path, seeds):
@@ -174,7 +235,29 @@ def test_cli_end_to_end(tmp_path, seeds):
                                                 "--Vs", "25", "--Vd", "0", "--vlim", "0", "--traj_int", "1", "--revrot", "0.0", *seeds])
     movie = tmp_path / "movie.gif"
     result = subprocess.run([sys.executable, str(SCRIPTS_DIR / "31_animate_trajectories.py"), str(ofn), "-o", str(movie),
-                             "--stride", "1", "--color", "speed", "--zoom", "0", "0", "4", "--dpi", "40"],
+                             "--stride", "1", "--color", "speed", "--head_color", "image", "--size_scale", "1.5",
+                             "--zoom", "0", "0", "4", "--dpi", "40"],
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert Image.open(movie).n_frames == xr.open_dataset(tmp_path / "in.nc").sizes["t"]
+
+
+def test_cli_raw_image_in_a_crameri_colormap(tmp_path):
+    """--raw on a Scientific colour map named without cmcrameri's `cmc.` prefix, the zoom panel on its own scale."""
+    pytest.importorskip("cmcrameri")
+    frames = make_uniform_advection_frames(6, 81, 81, 0.25, 0.25, -10.0, -10.0, 150.0, 10.0, 5.0)
+    ofn = run_tracking(tmp_path, frames, "Z", ["--ns", "9", "--ntrac", "1", "--Sth0", "0.5", "--Sth1", "0.5", "--Cth", "0",
+                                                "--Vs", "25", "--Vd", "0", "--vlim", "0", "--traj_int", "1", "--revrot", "0.0",
+                                                "--xgran=-6:6", "--ygran=-6:6", "--xint", "2", "--yint", "2"])
+    movie = tmp_path / "movie.gif"
+    result = subprocess.run([sys.executable, str(SCRIPTS_DIR / "31_animate_trajectories.py"), str(ofn), "-o", str(movie),
+                             "--raw", "--image_cmap", "batlow_r", "--vlim", "20", "80", "--zoom", "0", "0", "4",
+                             "--zoom_vlim", "40", "60", "--dpi", "40"], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert Image.open(movie).n_frames == frames.sizes["t"]
+
+
+def test_cli_rejects_an_unknown_colormap(tmp_path):
+    result = subprocess.run([sys.executable, str(SCRIPTS_DIR / "31_animate_trajectories.py"), str(tmp_path / "none.nc"),
+                             "--image_cmap", "no_such_map"], capture_output=True, text=True)
+    assert result.returncode == 2 and "unknown colormap 'no_such_map'" in result.stderr

@@ -124,9 +124,9 @@ def local_contrast(frame, dx: float, fwhm: float = 8.0, fraction: float = 0.5, l
 
 def animate_trajectories(
     images, x, y, xloc, yloc, frame_index, *, times=None, valid=None, panels=None, stride=1, checker=False,
-    color="yellow", cmap="plasma", clim=None, color_label=None, linewidth=2.0, tail_width=0.1, size=14.0,
+    color="yellow", cmap="plasma", clim=None, color_label=None, head_color=None, linewidth=2.0, tail_width=0.1, size=14.0,
     omega=0.0, center=None, ref_step=None, rings=(), image_transform=None, standardize=True, vlim=None,
-    image_cmap="gray", rest=1, regular_tol=0.25, title="", axes=None,
+    image_cmap="gray", image_label=None, rest=1, regular_tol=0.25, title="", axes=None,
 ) -> TrajectoryMovie:
     """Build the animation of tracked parcels moving along their trajectories over the images.
 
@@ -154,8 +154,8 @@ def animate_trajectories(
         Tracks to draw, e.g. `np.isfinite(vx)` (default: those with any finite position).
     panels : list of dict, optional
         One axes each. The window is `xlim`/`ylim`, or `center`/`half` for a square; optional `title`, `stride`,
-        `checker`, `linewidth` and `size` override the arguments below. Default: one panel over the whole image. The
-        first of several panels outlines the others.
+        `checker`, `linewidth`, `size` and `vlim` override the arguments below. Default: one panel over the whole
+        image. The first of several panels outlines the others.
     stride, checker
         Draw every `stride`-th track along each track dimension (int, or one per dimension); `checker` then keeps every
         other one of those in a checkerboard (spacing x sqrt 2).
@@ -163,6 +163,10 @@ def animate_trajectories(
         A matplotlib color; "speed" for each trajectory's start-to-end speed in the drawn frame (x 1000: km and s ->
         m/s); or an (nset, ...) array of values. Values are colormapped with `cmap` over `clim` (default: 0 to the 98th
         percentile of the speeds, or the 2nd-98th percentiles of the values), labeled `color_label`.
+    head_color
+        Fill of the parcel markers, if not that of `color`: a matplotlib color, or "image" for the image's color under
+        the parcel at the first step of its trajectory (where it first appears in the movie), in each panel's color
+        scale. A parcel that follows its cloud then keeps the color of the cloud beneath it. The trails keep `color`.
     linewidth, tail_width, size
         Trail width at the parcel (points); it falls linearly with age to `tail_width` x `linewidth` at the age of the
         whole trajectory. `size` is the parcel marker area (points^2).
@@ -171,10 +175,13 @@ def animate_trajectories(
         (default (0, 0)), coinciding with the image frame at step `ref_step` (default: the middle step); the images turn
         with it, and the colored speeds are relative to it. If `center` is given it is marked with a cross and `rings`
         (radii) are drawn about it.
-    image_transform, standardize, vlim, image_cmap
+    image_transform, standardize, vlim, image_cmap, image_label
         Image display: `image_transform(frame)` first (e.g. `local_contrast`); then, if `standardize`, the median over
         the first panel removed, the result divided by 1.2 x its 16-84 percentile spread and asinh-stretched. `vlim`
-        gives the color limits (default +-2.4 when standardized, else the first image's range).
+        gives the color limits of `image_cmap` (default +-2.4 when standardized, else the range of the first image over
+        the first panel). Set `standardize=False` to show the values themselves (e.g. brightness temperature) and
+        `image_label` to add a colorbar of them with that label: one under all panels, or one under each panel when a
+        panel has its own `vlim`.
     rest : int
         Images shown alone after each cycle; they mark where the next set starts.
     regular_tol : float or None
@@ -195,6 +202,7 @@ def animate_trajectories(
     fi = np.asarray(frame_index).astype(int).reshape(nset, nstep)
     ok = (np.isfinite(X) & np.isfinite(Y)).any(1) if valid is None else np.asarray(valid, bool).reshape(nset, -1)
     by_speed = isinstance(color, str) and color == "speed"
+    image_heads = isinstance(head_color, str) and head_color == "image"
     values = None if isinstance(color, str) else np.asarray(color, float).reshape(nset, -1)
     mapped = by_speed or values is not None
     if times is None and (omega or by_speed):
@@ -277,8 +285,10 @@ def animate_trajectories(
             xlim = p.get("xlim", (xs[0] - dx / 2, xs[-1] + dx / 2))
             ylim = p.get("ylim", (ys[0] - dy / 2, ys[-1] + dy / 2))
         specs.append(dict(xlim=tuple(xlim), ylim=tuple(ylim), title=p.get("title", ""), lw=p.get("linewidth", linewidth),
-                          size=p.get("size", size), keep=_thin(xloc.shape[2:], p.get("stride", stride), p.get("checker", checker))))
+                          size=p.get("size", size), keep=_thin(xloc.shape[2:], p.get("stride", stride), p.get("checker", checker)),
+                          vlim=p.get("vlim")))
     stats_crop = crop(specs[0]["xlim"], specs[0]["ylim"], 0.0)[0]
+    per_panel = any(p["vlim"] is not None for p in specs)                    # image colorbar under each panel
 
     cache = {}
 
@@ -303,7 +313,9 @@ def animate_trajectories(
     if own:
         ncol = 1 if len(specs) == 1 else 2
         nrow = -(-len(specs) // ncol)
-        fig, grid = plt.subplots(nrow, ncol, figsize=(5.5 * ncol + 0.9 * mapped, 5.7 * nrow), layout="constrained", squeeze=False)
+        bars = 0 if image_label is None else nrow if per_panel else 1          # rows of image colorbars
+        fig, grid = plt.subplots(nrow, ncol, figsize=(4.5 * ncol + 0.9 * mapped, 4.7 * nrow + 0.8 * bars), layout="constrained",
+                                 squeeze=False)
         for extra in grid.ravel()[len(specs):]:
             extra.remove()
         axes = list(grid.ravel()[:len(specs)])
@@ -313,14 +325,19 @@ def animate_trajectories(
 
     shade = plt.get_cmap(image_cmap).copy()
     shade.set_bad("0.35")
+    first = display(schedule[0][0])
     if vlim is None and standardize:
         vlim = (-2.4, 2.4)
-    first = display(schedule[0][0])
+    elif vlim is None:                                                        # one scale for every panel
+        r = first[stats_crop]
+        r = r[np.isfinite(r)]
+        vlim = (float(r.min()), float(r.max())) if r.size else None
     for n, (ax, p) in enumerate(zip(axes, specs)):
         p["ax"] = ax
         p["crop"], extent = crop(p["xlim"], p["ylim"], th_max)
+        lim = vlim if p["vlim"] is None else p["vlim"]
         p["im"] = ax.imshow(first[p["crop"]], origin="lower", extent=extent, cmap=shade, zorder=0,
-                            vmin=None if vlim is None else vlim[0], vmax=None if vlim is None else vlim[1])
+                            vmin=None if lim is None else lim[0], vmax=None if lim is None else lim[1])
         p["lines"] = ax.add_collection(LineCollection([], capstyle="round", zorder=2), autolim=False)
         p["heads"] = ax.scatter(np.empty(0), np.empty(0), s=p["size"], facecolors="none" if mapped else color,
                                 edgecolors="k", linewidths=0.6, zorder=3)
@@ -340,6 +357,11 @@ def animate_trajectories(
     if mappable is not None and own:
         default = ("Speed" + (" in the co-rotating frame" if omega else "") + " (m s$^{-1}$)") if by_speed else ""
         fig.colorbar(mappable, ax=axes, shrink=0.8, label=color_label if color_label is not None else default)
+    if image_label is not None and own:
+        targets = [(p["im"], p["ax"]) for p in specs] if per_panel else [(specs[0]["im"], axes)]
+        for im, where in targets:
+            fig.colorbar(im, ax=where, location="bottom", shrink=0.8 if per_panel else 0.6, aspect=25 if per_panel else 40,
+                         extend="both", label=image_label)
 
     def frame_label(i):
         k, j, _ = schedule[i]
@@ -348,11 +370,23 @@ def animate_trajectories(
             mant, expo = f"{omega:.2e}".split("e")
             parts.append(rf"co-rotating at {float(mant):g}$\times$10$^{{{int(expo)}}}$ s$^{{-1}}$")
         if j is None:
-            parts.append("image only")
+            parts.append("image only between tracking cycles")                # about as long as the label below
         else:
             f0, f1 = fi[j, 0], fi[j, -1]
             parts.append(f"AMVs at {_time_label(times, fi[j, ref], short=True)}: tracking frame {k - f0 + 1}/{f1 - f0 + 1}")
         return " | ".join(parts)
+
+    def start_colors(j):
+        """For each panel, the RGBA of the displayed image under every track of set j at its first step (nearest pixel;
+        in the image frame, which the drawn frame coincides with there)."""
+        img = display(fi[j, 0])
+        px, py = X[j, 0], Y[j, 0]
+        inside = (np.abs(px - (xs[0] + xs[-1]) / 2) <= (xs[-1] - xs[0] + dx) / 2) & \
+                 (np.abs(py - (ys[0] + ys[-1]) / 2) <= (ys[-1] - ys[0] + dy) / 2)
+        ix = np.clip(np.rint((np.where(inside, px, xs[0]) - xs[0]) / dx).astype(int), 0, xs.size - 1)
+        iy = np.clip(np.rint((np.where(inside, py, ys[0]) - ys[0]) / dy).astype(int), 0, ys.size - 1)
+        value = np.where(inside, img[iy, ix], np.nan)
+        return [p["im"].to_rgba(value) for p in specs]
 
     current = {}
 
@@ -360,10 +394,10 @@ def animate_trajectories(
         k, j, s = schedule[i]
         img = display(k)
         if j is not None and current.get("j") != j:
-            current.update(j=j, geo=geometry(j))
+            current.update(j=j, geo=geometry(j), start=start_colors(j) if image_heads else None)
         th = -omega * (tt[k] - tt[fi[j, ref]]) if omega and j is not None else 0.0
         artists = []
-        for p in specs:
+        for n, p in enumerate(specs):
             p["im"].set_data(img[p["crop"]])
             if omega:
                 p["im"].set_transform(transforms.Affine2D().rotate_around(rc[0], rc[1], th) + p["ax"].transData)
@@ -379,7 +413,10 @@ def animate_trajectories(
                 xy = np.column_stack([px[s, q], py[s, q]])
                 fin = np.isfinite(xy).all(1)
                 heads.set_offsets(xy[fin])
-                heads.set_facecolor(color if rgba is None else rgba[fin])
+                if image_heads:
+                    heads.set_facecolor(current["start"][n][q][fin])
+                else:
+                    heads.set_facecolor(head_color or (color if rgba is None else rgba[fin]))
                 if s >= 1:
                     seg, width, track = trail(px, py, ts, s, q, p["lw"])
                     if len(seg):
@@ -391,10 +428,15 @@ def animate_trajectories(
         return artists + [label]
 
     label = fig.suptitle("")
-    if own:                                                                   # freeze the layout on the longest label
+    if own:                                       # freeze the layout on the longest label, shrunk to fit the figure if needed
         label.set_text(max((frame_label(i) for i in range(len(schedule))), key=len))
         fig.canvas.draw()
+        width = label.get_window_extent().width / fig.bbox.width
+        if width > 0.96:
+            label.set_fontsize(label.get_fontsize() * 0.96 / width)
+            fig.canvas.draw()
         fig.set_layout_engine("none")
+        label.set(x=label.get_window_extent().x0 / fig.bbox.width, ha="left")   # every label starts there: no jumps
     draw(0)
     return TrajectoryMovie(fig, axes, schedule, draw, mappable)
 

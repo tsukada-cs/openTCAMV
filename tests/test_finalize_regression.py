@@ -105,6 +105,14 @@ def test_polar_completes_without_crashing(tmp_path):
     assert {"vr", "vt", "rloc", "aloc"} <= set(ds.data_vars)
 
 
+def test_single_omega_completes(tmp_path):
+    """A single Ω_i (one --revrot value, or one picked out of a 10_ output) finalizes: with one candidate there is
+    nothing to choose, only screening. `squeeze()` used to drop the length-1 omega dimension along with ns."""
+    ds = _run_finalize(tmp_path, ["--exclude", "stf", "stb", "score_ary", "psr"], n_omega=1)
+    assert "omega" not in ds.dims
+    assert int(ds.vx.notnull().sum()) > 0
+
+
 def test_missing_exclude_does_not_crash(tmp_path):
     """F11: `--exclude` omitted raised `TypeError` (`used_vars + None`) in
     the pre-refactor script. Every known real invocation always passes

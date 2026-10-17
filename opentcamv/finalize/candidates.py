@@ -80,7 +80,7 @@ def assemble_final(
     ns_min = ns_selection["ns_min"]
 
     if flows_org.ns.size == 1:
-        flows_ns_min = flows_org.squeeze()
+        flows_ns_min = flows_org.squeeze("ns")  # only ns: a single-Omega input keeps its omega dimension
     else:
         flows_ns_min = flows_org.sel(ns=valid_ns_mins.fillna(ns_min))
 

@@ -20,8 +20,13 @@
   the AMVs over the images they were tracked in. Each AMV time plays as a
   cycle through the images of its trajectories, every image appears once,
   and the trails thin smoothly with age. Options: zoom panels, thinning
-  (stride/checkerboard), coloring by speed or any value, and a display frame
-  co-rotating with the vortex (`--corotate`). The module imports nothing from
+  (stride/checkerboard), coloring by speed or any value, parcels filled with
+  the image color where they first appear (`--head_color image`), a display frame
+  co-rotating with the vortex (`--corotate`), and the image either
+  standardized on a gray scale or, with `--raw`, as it is (e.g. brightness
+  temperature) on a colorbar in any colormap -- Crameri's Scientific colour
+  maps such as batlow by name through cmcrameri -- with the zoom panels
+  optionally on a scale of their own (`--zoom_vlim`). The module imports nothing from
   openTCAMV (numpy + matplotlib only; scipy for its `local_contrast` helper),
   so the file can be copied into other projects and fed any tracker's
   trajectories; `match_frames` maps trajectory step times onto image indices.
@@ -51,6 +56,11 @@
    Omega, NaN where no candidate survived -- the variable to check which
    `ns` the selector picked when run on multi-`--ns` output. The `main`
    golden regression scenario predates it and is compared without it.
+5. **`20_finalize_tracking.py` crashed on a single Omega** (`KeyError:
+   Dimension 'omega' not found`), e.g. one `--revrot` value or one Omega
+   picked out of a `10_` output: with a single `ns`, `assemble_final()`
+   squeezed every length-1 dimension, `omega` included. It now squeezes
+   `ns` only; multi-Omega input is unaffected.
 
 ### Changed
 
